@@ -28,3 +28,18 @@ struct ASTnode *mkastnode(int op, int type,
   n->linenum= 0;
   return (n);
 }
+
+// 创建一个抽象语法树叶子节点
+struct ASTnode *mkastleaf(int op, int type,
+			  struct symtable *ctype,
+			  struct symtable *sym, int intvalue) {
+  return (mkastnode(op, type, ctype, NULL, NULL, NULL, sym, intvalue));
+}
+
+// 创建抽象语法树unary节点: 只有一个子节点
+struct ASTnode *mkastunary(int op, int type,
+			   struct symtable *ctype,
+			   struct ASTnode *left,
+			   struct symtable *sym, int intvalue) {
+  return (mkastnode(op, type, ctype, left, NULL, NULL, sym, intvalue));
+}
