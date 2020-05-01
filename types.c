@@ -3,6 +3,7 @@
 #include "decl.h"
 
 // 类型和类型处理
+// Copyright (c) 2019 Warren Toomey, GPL3
 
 // 如果type是一个任意大小的整型（这里还包括字符和长整型），就返回true
 int inttype(int type) {

@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 //杂项函数
+// Copyright (c) 2019 Warren Toomey, GPL3
 
 //保证当前token是t，和获取下个token，否则就报错
 void match(int t, char *what){
