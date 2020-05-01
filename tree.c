@@ -2,6 +2,8 @@
 #include "data.h"
 #include "decl.h"
 
+// 抽象语法树相关函数
+
 // 创建并返回一个抽象语法树节点
 struct ASTnode *mkastnode(int op, int type,
 			  struct symtable *ctype,

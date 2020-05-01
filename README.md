@@ -1,2 +1,7 @@
 # mycc
-a replacement of gcc
+
+一个c的编译器
+
+## 参考
+
+
