@@ -22,23 +22,24 @@ void appendsym(struct symtable **head, struct symtable **tail,
   node->next = NULL;
 }
 
-// Create a symbol node to be added to a symbol table list.
-// Set up the node's:
-// + type: char, int etc.
-// + ctype: composite type pointer for struct/union
-// + structural type: var, function, array etc.
-// + size: number of elements, or endlabel: end label for a function
-// + posn: Position information for local symbols
-// Return a pointer to the new node
+// 创建一个符号节点加入到符号表列表
+// 设置这个节点：
+// + type:  字符类型，整型等
+// + ctype: struct/union组合类型指针 
+// + stype: 结构化类型，表示变量，函数，数组等等
+// + class: 存储类
+// + nelems: 数组元素个数或函数的参数个数
+// + posn: 本地符号的位置信息
+// 返回一个指向新节点的指针
 struct symtable *newsym(char *name, int type, struct symtable *ctype,
 			int stype, int class, int nelems, int posn) {
 
-  // Get a new node
+  // 分配内存，创建节点
   struct symtable *node = (struct symtable *) malloc(sizeof(struct symtable));
   if (node == NULL)
     fatal("Unable to malloc a symbol table node in newsym");
 
-  // Fill in the values
+  // 填充值
   if (name == NULL)
     node->name = NULL;
   else
@@ -49,9 +50,8 @@ struct symtable *newsym(char *name, int type, struct symtable *ctype,
   node->class = class;
   node->nelems = nelems;
 
-  // For pointers and integer types, set the size
-  // of the symbol. structs and union declarations
-  // manually set this up themselves.
+  // 对于指针和整型，直接设置大小
+  // 对于structs/union，后面再设置
   if (ptrtype(type) || inttype(type))
     node->size = nelems * typesize(type, ctype);
 
@@ -62,31 +62,31 @@ struct symtable *newsym(char *name, int type, struct symtable *ctype,
   return (node);
 }
 
-// Add a symbol to the global symbol list
+// 加一个符号表到全局符号表
 struct symtable *addglob(char *name, int type, struct symtable *ctype,
 			 int stype, int class, int nelems, int posn) {
   struct symtable *sym =
     newsym(name, type, ctype, stype, class, nelems, posn);
-  // For structs and unions, copy the size from the type node
+  // 对于structs/union，从它的类型节点那里拷贝大小
   if (type == P_STRUCT || type == P_UNION)
     sym->size = ctype->size;
   appendsym(&Globhead, &Globtail, sym);
   return (sym);
 }
 
-// Add a symbol to the local symbol list
+// 加一个符号表到本地符号表
 struct symtable *addlocl(char *name, int type, struct symtable *ctype,
 			 int stype, int nelems) {
   struct symtable *sym = newsym(name, type, ctype, stype, C_LOCAL, nelems, 0);
 
-  // For structs and unions, copy the size from the type node
+  // 对于structs/union，从它的类型节点那里拷贝大小
   if (type == P_STRUCT || type == P_UNION)
     sym->size = ctype->size;
   appendsym(&Loclhead, &Locltail, sym);
   return (sym);
 }
 
-// Add a symbol to the parameter list
+// 加一个符号表到参数符号表
 struct symtable *addparm(char *name, int type, struct symtable *ctype,
 			 int stype) {
   struct symtable *sym = newsym(name, type, ctype, stype, C_PARAM, 1, 0);
@@ -94,52 +94,52 @@ struct symtable *addparm(char *name, int type, struct symtable *ctype,
   return (sym);
 }
 
-// Add a symbol to the temporary member list
+// 加一个符号表到临时成员表
 struct symtable *addmemb(char *name, int type, struct symtable *ctype,
 			 int stype, int nelems) {
   struct symtable *sym =
     newsym(name, type, ctype, stype, C_MEMBER, nelems, 0);
 
-  // For structs and unions, copy the size from the type node
+  // 对于structs/union，从它的类型节点那里拷贝大小
   if (type == P_STRUCT || type == P_UNION)
     sym->size = ctype->size;
   appendsym(&Membhead, &Membtail, sym);
   return (sym);
 }
 
-// Add a struct to the struct list
+// 加一个struct到struct列表
 struct symtable *addstruct(char *name) {
   struct symtable *sym = newsym(name, P_STRUCT, NULL, 0, C_STRUCT, 0, 0);
   appendsym(&Structhead, &Structtail, sym);
   return (sym);
 }
 
-// Add a struct to the union list
+// 加一个union到union列表
 struct symtable *addunion(char *name) {
   struct symtable *sym = newsym(name, P_UNION, NULL, 0, C_UNION, 0, 0);
   appendsym(&Unionhead, &Uniontail, sym);
   return (sym);
 }
 
-// Add an enum type or value to the enum list.
-// Class is C_ENUMTYPE or C_ENUMVAL.
-// Use posn to store the int value.
+// 加枚举类型或枚举值到枚举列表
+// Class是C_ENUMTYPE或C_ENUMVAL.
+// posn存储枚举值.
 struct symtable *addenum(char *name, int class, int value) {
   struct symtable *sym = newsym(name, P_INT, NULL, 0, class, 0, value);
   appendsym(&Enumhead, &Enumtail, sym);
   return (sym);
 }
 
-// Add a typedef to the typedef list
+//加一个typedef到typedef列表
 struct symtable *addtypedef(char *name, int type, struct symtable *ctype) {
   struct symtable *sym = newsym(name, type, ctype, 0, C_TYPEDEF, 0, 0);
   appendsym(&Typehead, &Typetail, sym);
   return (sym);
 }
 
-// Search for a symbol in a specific list.
-// Return a pointer to the found node or NULL if not found.
-// If class is not zero, also match on the given class
+// 在指定列表搜素某个符号表
+// 如果找到，返回指向找到节点的指针，否则返回NULL
+// 如果class不为0，还要匹配class
 static struct symtable *findsyminlist(char *s, struct symtable *list,
 				      int class) {
   for (; list != NULL; list = list->next)
@@ -149,18 +149,17 @@ static struct symtable *findsyminlist(char *s, struct symtable *list,
   return (NULL);
 }
 
-// Determine if the symbol s is in the global symbol table.
-// Return a pointer to the found node or NULL if not found.
+// 在全局符号表里面查找
 struct symtable *findglob(char *s) {
   return (findsyminlist(s, Globhead, 0));
 }
 
-// Determine if the symbol s is in the local symbol table.
-// Return a pointer to the found node or NULL if not found.
-struct symtable *findlocl(char *s) {
+
+// 在本地符号表里面查找
+struct symtable *findlocl(char *s) {cans
   struct symtable *node;
 
-  // Look for a parameter if we are in a function's body
+  // 如果正在解析函数体，在参数表里面找
   if (Functionid) {
     node = findsyminlist(s, Functionid->member, 0);
     if (node)
@@ -169,61 +168,54 @@ struct symtable *findlocl(char *s) {
   return (findsyminlist(s, Loclhead, 0));
 }
 
-// Determine if the symbol s is in the symbol table.
-// Return a pointer to the found node or NULL if not found.
+// 在函数，本地，全局符号表里面查找
 struct symtable *findsymbol(char *s) {
   struct symtable *node;
 
-  // Look for a parameter if we are in a function's body
+  // 如果正在解析函数体，在参数表里面找
   if (Functionid) {
     node = findsyminlist(s, Functionid->member, 0);
     if (node)
       return (node);
   }
-  // Otherwise, try the local and global symbol lists
+  // 否则，尝试在本地和全局列表里面看看
   node = findsyminlist(s, Loclhead, 0);
   if (node)
     return (node);
   return (findsyminlist(s, Globhead, 0));
 }
 
-// Find a member in the member list
-// Return a pointer to the found node or NULL if not found.
+//在成员列表里面查找成员
 struct symtable *findmember(char *s) {
   return (findsyminlist(s, Membhead, 0));
 }
 
-// Find a struct in the struct list
-// Return a pointer to the found node or NULL if not found.
+// 在struct列表里面查找struct
 struct symtable *findstruct(char *s) {
   return (findsyminlist(s, Structhead, 0));
 }
 
-// Find a struct in the union list
-// Return a pointer to the found node or NULL if not found.
+// 在union列表里面查找union
 struct symtable *findunion(char *s) {
   return (findsyminlist(s, Unionhead, 0));
 }
 
-// Find an enum type in the enum list
-// Return a pointer to the found node or NULL if not found.
+// 在枚举列表里面查找枚举类型
 struct symtable *findenumtype(char *s) {
   return (findsyminlist(s, Enumhead, C_ENUMTYPE));
 }
 
-// Find an enum value in the enum list
-// Return a pointer to the found node or NULL if not found.
+// 在枚举列表里面查找枚举值
 struct symtable *findenumval(char *s) {
   return (findsyminlist(s, Enumhead, C_ENUMVAL));
 }
 
-// Find a type in the tyedef list
-// Return a pointer to the found node or NULL if not found.
+// 在typedef列表里面查找typedef
 struct symtable *findtypedef(char *s) {
   return (findsyminlist(s, Typehead, 0));
 }
 
-// Reset the contents of the symbol table
+// 重置所有符号表列表头尾指针的值
 void clear_symtable(void) {
   Globhead = Globtail = NULL;
   Loclhead = Locltail = NULL;
@@ -235,46 +227,43 @@ void clear_symtable(void) {
   Typehead = Typetail = NULL;
 }
 
-// Clear all the entries in the local symbol table
+// 重置跟本地符号表相关的指针
 void freeloclsyms(void) {
   Loclhead = Locltail = NULL;
   Parmhead = Parmtail = NULL;
   Functionid = NULL;
 }
 
-// Remove all static symbols from the global symbol table
+// 从全局符号表里面删除所有静态符号
 void freestaticsyms(void) {
-  // g points at current node, prev at the previous one
+  // g指向当前节点，prev指向前面那个
   struct symtable *g, *prev = NULL;
 
-  // Walk the global table looking for static entries
+  // 在全局表里面查找
   for (g = Globhead; g != NULL; g = g->next) {
     if (g->class == C_STATIC) {
 
-      // If there's a previous node, rearrange the prev pointer
-      // to skip over the current node. If not, g is the head,
-      // so do the same to Globhead
+      // 如果prev不为空，跳过当前节点
+      // 否则， g就是在头部，所以还是跳过当前节点
       if (prev != NULL)
-	prev->next = g->next;
+	      prev->next = g->next;
       else
-	Globhead->next = g->next;
+	      Globhead->next = g->next;
 
-      // If g is the tail, point Globtail at the previous node
-      // (if there is one), or Globhead
+      // 如果g在尾部，就把Globtail指向前面那个节点(如果有的话)，或者指向Globhead
       if (g == Globtail) {
-	if (prev != NULL)
-	  Globtail = prev;
-	else
-	  Globtail = Globhead;
+        if (prev != NULL)
+          Globtail = prev;
+        else
+          Globtail = Globhead;
       }
     }
+     // 在移到下一个节点前，使prev指向g
+    prev = g;
   }
-
-  // Point prev at g before we move up to the next node
-  prev = g;
 }
 
-// Dump a single symbol
+// 打印一个符号
 static void dumpsym(struct symtable *sym, int indent) {
   int i;
 
@@ -391,7 +380,7 @@ static void dumpsym(struct symtable *sym, int indent) {
   }
 }
 
-// Dump one symbol table
+// 打印一个符号表
 void dumptable(struct symtable *head, char *name, int indent) {
   struct symtable *sym;
 
