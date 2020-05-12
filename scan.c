@@ -26,44 +26,44 @@ static int next(void) {
 
   c = fgetc(Infile);			// 从输入文件读入一个字符
 
-  while (Linestart && c == '#') {	// We've hit a pre-processor statement
-    Linestart = 0;			// No longer at the start of the line
-    scan(&Token);			// Get the line number into l
+  while (Linestart && c == '#') {	// 预处理开始
+    Linestart = 0;			// 不在行首
+    scan(&Token);			// 获取行号放到l
     if (Token.token != T_INTLIT)
       fatals("Expecting pre-processor line number, got:", Text);
     l = Token.intvalue;
 
-    scan(&Token);			// Get the filename in Text
+    scan(&Token);			// 获得文件名放在Text
     if (Token.token != T_STRLIT)
       fatals("Expecting pre-processor file name, got:", Text);
 
-    if (Text[0] != '<') {		// If this is a real filename
-      if (strcmp(Text, Infilename))	// and not the one we have now
-	Infilename = strdup(Text);	// save it. Then update the line num
+    if (Text[0] != '<') {		// 如果这是真的文件名
+      if (strcmp(Text, Infilename))	// 跟我们已有的不一样
+	    Infilename = strdup(Text);	// 保存它，然后更新行号
       Line = l;
     }
 
-    while ((c = fgetc(Infile)) != '\n'); // Skip to the end of the line
-    c = fgetc(Infile);			// and get the next character
-    Linestart = 1;			// Now back at the start of the line
+    while ((c = fgetc(Infile)) != '\n'); // 调到下一行
+    c = fgetc(Infile);			// 获取下一个字符
+    Linestart = 1;			// 现在在行首了
   }
 
-  Linestart = 0;			// No longer at the start of the line
+  Linestart = 0;			// 不在行首
   if ('\n' == c) {
-    Line++;				// Increment line count
-    Linestart = 1;			// Now back at the start of the line
+    Line++;				// 增加行号
+    Linestart = 1;			// 现在在行首了
   }
   return (c);
 }
 
-// Put back an unwanted character
+// 放回一个不需要的字符
 static void putback(int c) {
   Putback = c;
 }
 
-// Skip past input that we don't need to deal with, 
-// i.e. whitespace, newlines. Return the first
-// character we do need to deal with.
+// 跳过不需要处理的输入
+// 例如，空格，换行等
+// 返回我们需要处理的字符
 static int skip(void) {
   int c;
 
@@ -74,24 +74,25 @@ static int skip(void) {
   return (c);
 }
 
-// Read in a hexadecimal constant from the input
+// 从输入里面读入一个16进制常量
 static int hexchar(void) {
   int c, h, n = 0, f = 0;
 
-  // Loop getting characters
+  // 循环获取字符
   while (isxdigit(c = next())) {
-    // Convert from char to int value
+    // 转换字符为整型
     h = chrpos("0123456789abcdef", tolower(c));
 
     // Add to running hex value
+    // 加到已有的16进制值
     n = n * 16 + h;
     f = 1;
   }
 
-  // We hit a non-hex character, put it back
+  // 碰到一个非16进制字符，放回
   putback(c);
 
-  // Flag tells us we never saw any hex characters
+  // 标志告诉我们，没有看到任何16进制字符
   if (!f)
     fatal("missing digits after '\\x'");
   if (n > 255)
@@ -100,41 +101,37 @@ static int hexchar(void) {
   return (n);
 }
 
-// Return the next character from a character
-// or string literal
+// 从一个字符或者字符字面量里面返回下一个字符
 static int scanch(void) {
   int i, c, c2;
 
-  // Get the next input character and interpret
-  // metacharacters that start with a backslash
+  // 获取下个字符，并解释那些有反斜杠开头的字符
   c = next();
   if (c == '\\') {
     switch (c = next()) {
       case 'a':
-	return ('\a');
+	    return ('\a');
       case 'b':
-	return ('\b');
+	    return ('\b');
       case 'f':
-	return ('\f');
+	    return ('\f');
       case 'n':
-	return ('\n');
+	    return ('\n');
       case 'r':
-	return ('\r');
+	    return ('\r');
       case 't':
-	return ('\t');
+	    return ('\t');
       case 'v':
-	return ('\v');
+	    return ('\v');
       case '\\':
-	return ('\\');
+	    return ('\\');
       case '"':
-	return ('"');
+	    return ('"');
       case '\'':
-	return ('\'');
+	    return ('\'');
 
-	// Deal with octal constants by reading in
-	// characters until we hit a non-octal digit.
-	// Build up the octal value in c2 and count
-	// # digits in i. Permit only 3 octal digits.
+    // 处理8进制，直到碰到不是8进制数字为止
+    // 值放在c2，位数放在i，只允许3位8进制数字
       case '0':
       case '1':
       case '2':
@@ -143,41 +140,40 @@ static int scanch(void) {
       case '5':
       case '6':
       case '7':
-	for (i = c2 = 0; isdigit(c) && c < '8'; c = next()) {
-	  if (++i > 3)
-	    break;
-	  c2 = c2 * 8 + (c - '0');
-	}
+        for (i = c2 = 0; isdigit(c) && c < '8'; c = next()) {
+            if (++i > 3)
+                break;
+            c2 = c2 * 8 + (c - '0');
+        }
 
-	putback(c);		// Put back the first non-octal char
-	return (c2);
+	    putback(c);		// 返回非8进制字符
+	    return (c2);
       case 'x':
-	return (hexchar());
+	    return (hexchar());
       default:
-	fatalc("unknown escape sequence", c);
+	    fatalc("unknown escape sequence", c);
     }
   }
-  return (c);			// Just an ordinary old character!
+  return (c);			// 返回普通的字符（没有反斜杠转义的）
 }
 
-// Scan and return an integer literal
-// value from the input file.
+// 从输入文件中扫描并返回整型字面量值
 static int scanint(int c) {
   int k, val = 0, radix = 10;
 
-  // Assume the radix is 10, but if it starts with 0
+  // 一般都是10进制，除非是0开头
   if (c == '0') {
-    // and the next character is 'x', it's radix 16
+    // 如果接下来是'x', 16进制
     if ((c = next()) == 'x') {
       radix = 16;
       c = next();
     } else
-      // Otherwise, it's radix 8
+      // 否则8进制
       radix = 8;
 
   }
 
-  // Convert each character into an int value
+  // 转换字符到整型
   while ((k = chrpos("0123456789abcdef", tolower(c))) >= 0) {
     if (k >= radix)
       fatalc("invalid digit in integer literal", c);
@@ -185,21 +181,20 @@ static int scanint(int c) {
     c = next();
   }
 
-  // We hit a non-integer character, put it back.
+  // 遇到非整型字符，放回
   putback(c);
   return (val);
 }
 
-// Scan in a string literal from the input file,
-// and store it in buf[]. Return the length of
-// the string. 
+// 从输入文件中扫描字符
+// 并存储在buf[]
+// 返回字符的长度
 static int scanstr(char *buf) {
   int i, c;
 
-  // Loop while we have enough buffer space
+  // 循环直到没有缓存
   for (i = 0; i < TEXTLEN - 1; i++) {
-    // Get the next char and append to buf
-    // Return when we hit the ending double quote
+    // 获取下一个字符，并放入到buf， 直到遇到双引号
     if ((c = scanch()) == '"') {
       buf[i] = 0;
       return (i);
@@ -207,20 +202,21 @@ static int scanstr(char *buf) {
     buf[i] = (char)c;
   }
 
-  // Ran out of buf[] space
+  // 用完buf[]空间
   fatal("String literal too long");
   return (0);
 }
 
-// Scan an identifier from the input file and
-// store it in buf[]. Return the identifier's length
+// 从输入文件中扫描标识符
+// 并存储在buf[]
+// 返回标识符的长度
 static int scanident(int c, char *buf, int lim) {
   int i = 0;
 
-  // Allow digits, alpha and underscores
+  // 允许数字，字母，下划线
   while (isalpha(c) || isdigit(c) || '_' == c) {
-    // Error if we hit the identifier length limit,
-    // else append to buf[] and get next character
+    // 如果超过标识符长度限制，就报错，
+    // 否则放入到buf[],并获取下个字符
     if (lim - 1 == i) {
       fatal("Identifier too long");
     } else if (i < lim - 1) {
@@ -229,92 +225,90 @@ static int scanident(int c, char *buf, int lim) {
     c = next();
   }
 
-  // We hit a non-valid character, put it back.
-  // NUL-terminate the buf[] and return the length
+  // 遇到无效字符，放回
+  // 0作为终结符放到buf[]中，并返回长度
   putback(c);
   buf[i] = '\0';
   return (i);
 }
 
-// Given a word from the input, return the matching
-// keyword token number or 0 if it's not a keyword.
-// Switch on the first letter so that we don't have
-// to waste time strcmp()ing against all the keywords.
+// 给定一个单词，如果是关键字返回token号，如果不是返回0
+// 用首字母匹配，就不用浪费时间在strcmp()
 static int keyword(char *s) {
   switch (*s) {
     case 'b':
       if (!strcmp(s, "break"))
-	return (T_BREAK);
+	    return (T_BREAK);
       break;
     case 'c':
       if (!strcmp(s, "case"))
-	return (T_CASE);
+	    return (T_CASE);
       if (!strcmp(s, "char"))
-	return (T_CHAR);
+	    return (T_CHAR);
       if (!strcmp(s, "continue"))
-	return (T_CONTINUE);
+	    return (T_CONTINUE);
       break;
     case 'd':
       if (!strcmp(s, "default"))
-	return (T_DEFAULT);
+	    return (T_DEFAULT);
       break;
     case 'e':
       if (!strcmp(s, "else"))
-	return (T_ELSE);
+	    return (T_ELSE);
       if (!strcmp(s, "enum"))
-	return (T_ENUM);
+	    return (T_ENUM);
       if (!strcmp(s, "extern"))
-	return (T_EXTERN);
+	    return (T_EXTERN);
       break;
     case 'f':
       if (!strcmp(s, "for"))
-	return (T_FOR);
+	    return (T_FOR);
       break;
     case 'i':
       if (!strcmp(s, "if"))
-	return (T_IF);
+	    return (T_IF);
       if (!strcmp(s, "int"))
-	return (T_INT);
+	    return (T_INT);
       break;
     case 'l':
       if (!strcmp(s, "long"))
-	return (T_LONG);
+	    return (T_LONG);
       break;
     case 'r':
       if (!strcmp(s, "return"))
-	return (T_RETURN);
+	    return (T_RETURN);
       break;
     case 's':
       if (!strcmp(s, "sizeof"))
-	return (T_SIZEOF);
+	    return (T_SIZEOF);
       if (!strcmp(s, "static"))
-	return (T_STATIC);
+	    return (T_STATIC);
       if (!strcmp(s, "struct"))
-	return (T_STRUCT);
+	    return (T_STRUCT);
       if (!strcmp(s, "switch"))
-	return (T_SWITCH);
+	    return (T_SWITCH);
       break;
     case 't':
       if (!strcmp(s, "typedef"))
-	return (T_TYPEDEF);
+	    return (T_TYPEDEF);
       break;
     case 'u':
       if (!strcmp(s, "union"))
-	return (T_UNION);
+	    return (T_UNION);
       break;
     case 'v':
       if (!strcmp(s, "void"))
-	return (T_VOID);
+	    return (T_VOID);
       break;
     case 'w':
       if (!strcmp(s, "while"))
-	return (T_WHILE);
+	    return (T_WHILE);
       break;
   }
   return (0);
 }
 
-// List of token strings, for debugging purposes
+// token字符串列表，为了调试方便
 char *Tstring[] = {
   "EOF", "=", "+=", "-=", "*=", "/=", "%=",
   "?", "||", "&&", "|", "^", "&",
@@ -330,12 +324,12 @@ char *Tstring[] = {
   "->", ":"
 };
 
-// Scan and return the next token found in the input.
-// Return 1 if token valid, 0 if no tokens left.
+// 扫描并返回下一个token
+// 返回1代表token有效，否则代表没有token了
 int scan(struct token *t) {
   int c, tokentype;
 
-  // If we have a lookahead token, return this token
+  // 如果有个向前看的token，返回这个token
   if (Peektoken.token != 0) {
     t->token = Peektoken.token;
     t->tokstr = Peektoken.tokstr;
@@ -344,62 +338,61 @@ int scan(struct token *t) {
     return (1);
   }
 
-  // Skip whitespace
+  // 跳过空格
   c = skip();
 
-  // Determine the token based on
-  // the input character
+  // 判断token是什么样的token
   switch (c) {
     case EOF:
       t->token = T_EOF;
       return (0);
     case '+':
       if ((c = next()) == '+') {
-	t->token = T_INC;
+	    t->token = T_INC;
       } else if (c == '=') {
-	t->token = T_ASPLUS;
+	    t->token = T_ASPLUS;
       } else {
-	putback(c);
-	t->token = T_PLUS;
+        putback(c);
+        t->token = T_PLUS;
       }
       break;
     case '-':
       if ((c = next()) == '-') {
-	t->token = T_DEC;
+	    t->token = T_DEC;
       } else if (c == '>') {
-	t->token = T_ARROW;
+	    t->token = T_ARROW;
       } else if (c == '=') {
-	t->token = T_ASMINUS;
-      } else if (isdigit(c)) {	// Negative int literal
-	t->intvalue = -scanint(c);
-	t->token = T_INTLIT;
+	    t->token = T_ASMINUS;
+      } else if (isdigit(c)) {	// 负数
+	    t->intvalue = -scanint(c);
+	    t->token = T_INTLIT;
       } else {
-	putback(c);
-	t->token = T_MINUS;
+        putback(c);
+        t->token = T_MINUS;
       }
       break;
     case '*':
       if ((c = next()) == '=') {
-	t->token = T_ASSTAR;
+	    t->token = T_ASSTAR;
       } else {
-	putback(c);
-	t->token = T_STAR;
+        putback(c);
+        t->token = T_STAR;
       }
       break;
     case '/':
       if ((c = next()) == '=') {
-	t->token = T_ASSLASH;
+	    t->token = T_ASSLASH;
       } else {
-	putback(c);
-	t->token = T_SLASH;
+        putback(c);
+        t->token = T_SLASH;
       }
       break;
     case '%':
       if ((c = next()) == '=') {
-	t->token = T_ASMOD;
+	    t->token = T_ASMOD;
       } else {
-	putback(c);
-	t->token = T_MOD;
+        putback(c);
+        t->token = T_MOD;
       }
       break;
     case ';':
@@ -443,97 +436,94 @@ int scan(struct token *t) {
       break;
     case '=':
       if ((c = next()) == '=') {
-	t->token = T_EQ;
+	    t->token = T_EQ;
       } else {
-	putback(c);
-	t->token = T_ASSIGN;
+        putback(c);
+        t->token = T_ASSIGN;
       }
       break;
     case '!':
       if ((c = next()) == '=') {
-	t->token = T_NE;
+	    t->token = T_NE;
       } else {
-	putback(c);
-	t->token = T_LOGNOT;
+        putback(c);
+        t->token = T_LOGNOT;
       }
       break;
     case '<':
       if ((c = next()) == '=') {
-	t->token = T_LE;
+	    t->token = T_LE;
       } else if (c == '<') {
-	t->token = T_LSHIFT;
+	    t->token = T_LSHIFT;
       } else {
-	putback(c);
-	t->token = T_LT;
+        putback(c);
+        t->token = T_LT;
       }
       break;
     case '>':
       if ((c = next()) == '=') {
-	t->token = T_GE;
+	    t->token = T_GE;
       } else if (c == '>') {
-	t->token = T_RSHIFT;
+	    t->token = T_RSHIFT;
       } else {
-	putback(c);
-	t->token = T_GT;
+        putback(c);
+        t->token = T_GT;
       }
       break;
     case '&':
       if ((c = next()) == '&') {
-	t->token = T_LOGAND;
+	    t->token = T_LOGAND;
       } else {
-	putback(c);
-	t->token = T_AMPER;
+        putback(c);
+        t->token = T_AMPER;
       }
       break;
     case '|':
       if ((c = next()) == '|') {
-	t->token = T_LOGOR;
+	    t->token = T_LOGOR;
       } else {
-	putback(c);
-	t->token = T_OR;
+        putback(c);
+        t->token = T_OR;
       }
       break;
     case '\'':
-      // If it's a quote, scan in the
-      // literal character value and
-      // the trailing quote
+      // 如果是单引号，那就是要扫描字符了
       t->intvalue = scanch();
       t->token = T_INTLIT;
       if (next() != '\'')
-	fatal("Expected '\\'' at end of char literal");
+	    fatal("Expected '\\'' at end of char literal");
       break;
     case '"':
-      // Scan in a literal string
+      // 扫描字符串
       scanstr(Text);
       t->token = T_STRLIT;
       break;
     default:
-      // If it's a digit, scan the
-      // literal integer value in
+      // 如果是数字，就扫描为字面量整型
       if (isdigit(c)) {
-	t->intvalue = scanint(c);
-	t->token = T_INTLIT;
-	break;
+        t->intvalue = scanint(c);
+        t->token = T_INTLIT;
+        break;
       } else if (isalpha(c) || '_' == c) {
-	// Read in a keyword or identifier
-	scanident(c, Text, TEXTLEN);
+        // 读入关键字或标识符
+        scanident(c, Text, TEXTLEN);
 
-	// If it's a recognised keyword, return that token
-	if ((tokentype = keyword(Text)) != 0) {
-	  t->token = tokentype;
-	  break;
-	}
+        // 如果是关键字，返回关键字的token
+        if ((tokentype = keyword(Text)) != 0) {
+            t->token = tokentype;
+            break;
+        }
 
-	// Not a recognised keyword, so it must be an identifier
-	t->token = T_IDENT;
-	break;
+        // 如果不是关键字，那就肯定是标识符
+        t->token = T_IDENT;
+        break;
       }
 
-      // The character isn't part of any recognised token, error
+      // 到这里，就代表不是认识的token了，报错
       fatalc("Unrecognised character", c);
   }
 
-  // We found a token
+  // 找到token啦
   t->tokstr = Tstring[t->token];
   return (1);
 }

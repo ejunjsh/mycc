@@ -62,22 +62,22 @@ void dumpAST(struct ASTnode *n, int label, int level) {
     case A_IF:
       Lfalse = gendumplabel();
       for (i = 0; i < level; i++)
-	fprintf(stdout, " ");
+	      fprintf(stdout, " ");
       fprintf(stdout, "A_IF");
       if (n->right) {
-	Lend = gendumplabel();
-	fprintf(stdout, ", end L%d", Lend);
+	      Lend = gendumplabel();
+	      fprintf(stdout, ", end L%d", Lend);
       }
       fprintf(stdout, "\n");
       dumpAST(n->left, Lfalse, level + 2);
       dumpAST(n->mid, NOLABEL, level + 2);
       if (n->right)
-	dumpAST(n->right, NOLABEL, level + 2);
+	      dumpAST(n->right, NOLABEL, level + 2);
       return;
     case A_WHILE:
       Lstart = gendumplabel();
       for (i = 0; i < level; i++)
-	fprintf(stdout, " ");
+	      fprintf(stdout, " ");
       fprintf(stdout, "A_WHILE, start L%d\n", Lstart);
       Lend = gendumplabel();
       dumpAST(n->left, Lend, level + 2);
@@ -143,9 +143,9 @@ void dumpAST(struct ASTnode *n, int label, int level) {
       return;
     case A_IDENT:
       if (n->rvalue)
-	fprintf(stdout, "A_IDENT rval %s\n", n->sym->name);
+	      fprintf(stdout, "A_IDENT rval %s\n", n->sym->name);
       else
-	fprintf(stdout, "A_IDENT %s\n", n->sym->name);
+	      fprintf(stdout, "A_IDENT %s\n", n->sym->name);
       return;
     case A_ASSIGN:
       fprintf(stdout, "A_ASSIGN\n");
@@ -164,9 +164,9 @@ void dumpAST(struct ASTnode *n, int label, int level) {
       return;
     case A_DEREF:
       if (n->rvalue)
-	fprintf(stdout, "A_DEREF rval\n");
+	      fprintf(stdout, "A_DEREF rval\n");
       else
-	fprintf(stdout, "A_DEREF\n");
+	      fprintf(stdout, "A_DEREF\n");
       return;
     case A_SCALE:
       fprintf(stdout, "A_SCALE %d\n", n->a_size);
