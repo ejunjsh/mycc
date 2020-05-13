@@ -10,100 +10,97 @@
 //        | expression ',' expression_list
 //        ;
 
-// Parse a list of zero or more comma-separated expressions and
-// return an AST composed of A_GLUE nodes with the left-hand child
-// being the sub-tree of previous expressions (or NULL) and the right-hand
-// child being the next expression. Each A_GLUE node will have size field
-// set to the number of expressions in the tree at this point. If no
-// expressions are parsed, NULL is returned
+
+// 解析由逗号分隔的表达式列表（列表可能为空），并返回语法树（树也可能为空）
+// 语法树由A_GLUE节点组成，节点左树是前一个表达式，右树是下一个表达式
+// A_GLUE节点有个大小字段，表示当前表达式数量
+// 如果没有表达式解析到，返回NULL
+// 解析时遇到endtoken，停止解析
 struct ASTnode *expression_list(int endtoken) {
   struct ASTnode *tree = NULL;
   struct ASTnode *child = NULL;
   int exprcount = 0;
 
-  // Loop until the end token
+  // 循环直到遇到结束的token
   while (Token.token != endtoken) {
 
-    // Parse the next expression and increment the expression count
+    // 解析下个表达式，同时增加表达式数量
     child = binexpr(0);
     exprcount++;
 
-    // Build an A_GLUE AST node with the previous tree as the left child
-    // and the new expression as the right child. Store the expression count.
+    // 创建一个A_GLUE节点，左树是之前的tree，右树是新的表达式child，同时保存表达式数量
     tree =
       mkastnode(A_GLUE, P_NONE, NULL, tree, NULL, child, NULL, exprcount);
 
-    // Stop when we reach the end token
+    // 遇到结束token
     if (Token.token == endtoken)
       break;
 
-    // Must have a ',' at this point
+    // 必须有逗号
     match(T_COMMA, ",");
   }
 
-  // Return the tree of expressions
+  // 返回所有表达式的树
   return (tree);
 }
 
-// Parse a function call and return its AST
+// 解析函数调用并返回语法树
 static struct ASTnode *funccall(void) {
   struct ASTnode *tree;
   struct symtable *funcptr;
 
-  // Check that the identifier has been defined as a function,
-  // then make a leaf node for it.
+  // 判断函数是否已经定义了
   if ((funcptr = findsymbol(Text)) == NULL || funcptr->stype != S_FUNCTION) {
     fatals("Undeclared function", Text);
   }
 
-  // Get the '('
+  // 是否匹配'('
   lparen();
 
-  // Parse the argument expression list
+  // 解析参数的表达式列表
   tree = expression_list(T_RPAREN);
 
-  // XXX Check type of each argument against the function's prototype
+  // TODO: 要检查每个参数类型是否匹配函数原型
 
-  // Build the function call AST node. Store the
-  // function's return type as this node's type.
-  // Also record the function's symbol-id
+  // 创建函数调用语法树节点，保存函数返回类型作为节点类型
+  // 同时记录函数符号号
   tree =
     mkastunary(A_FUNCCALL, funcptr->type, funcptr->ctype, tree, funcptr, 0);
 
-  // Get the ')'
+  // 是否匹配')'
   rparen();
   return (tree);
 }
 
-// Parse the index into an array and return an AST tree for it
+// 解析通过索引访问数组，并返回语法树
 static struct ASTnode *array_access(struct ASTnode *left) {
   struct ASTnode *right;
 
-  // Check that the sub-tree is a pointer
+  // 确认子树是否为指针
   if (!ptrtype(left->type))
     fatal("Not an array or pointer");
 
-  // Get the '['
+  // 获得'['
   scan(&Token);
 
-  // Parse the following expression
+  // 解析接下来的表达式
   right = binexpr(0);
 
-  // Get the ']'
+  // 匹配']'
   match(T_RBRACKET, "]");
 
-  // Ensure that this is of int type
+  // 保证是整型
   if (!inttype(right->type))
     fatal("Array index is not of integer type");
 
-  // Make the left tree an rvalue
+  // 让左树为右值
   left->rvalue = 1;
 
-  // Scale the index by the size of the element's type
+  // 使索引按元素类型大小来增大
   right = modify_type(right, left->type, left->ctype, A_ADD);
 
-  // Return an AST tree where the array's base has the offset added to it,
-  // and dereference the element. Still an lvalue at this point.
+  // 返回一个语法树节点，该节点是给这个数组的基地址加上位移
+  // 然后再在这个节点基础上，再加个节点来解引用。现在这些节点还是左值
   left =
     mkastnode(A_ADD, left->type, left->ctype, left, NULL, right, NULL, 0);
   left =
@@ -111,22 +108,21 @@ static struct ASTnode *array_access(struct ASTnode *left) {
   return (left);
 }
 
-// Parse the member reference of a struct or union
-// and return an AST tree for it. If withpointer is true,
-// the access is through a pointer to the member.
+// 解析一个struct/union的成员引用，并返回语法树
+// 如果withpointer是true，那访问是通过一个指向成员的指针
 static struct ASTnode *member_access(struct ASTnode *left, int withpointer) {
   struct ASTnode *right;
   struct symtable *typeptr;
   struct symtable *m;
 
-  // Check that the left AST tree is a pointer to struct or union
+  // 检查左树是不是个struct/union指针
   if (withpointer && left->type != pointer_to(P_STRUCT)
       && left->type != pointer_to(P_UNION))
     fatal("Expression is not a pointer to a struct/union");
 
-  // Or, check that the left AST tree is a struct or union.
-  // If so, change it from an A_IDENT to an A_ADDR so that
-  // we get the base address, not the value at this address.
+  // 否则，检查左树是不是个struct/union
+  // 如果是就改变节点类型，从A_IDENT到A_ADDR
+  // 这样我们获得的是基地址，而不是地址里面的值
   if (!withpointer) {
     if (left->type == P_STRUCT || left->type == P_UNION)
       left->op = A_ADDR;
@@ -134,29 +130,29 @@ static struct ASTnode *member_access(struct ASTnode *left, int withpointer) {
       fatal("Expression is not a struct/union");
   }
 
-  // Get the details of the composite type
+  // 获取组合类型
   typeptr = left->ctype;
 
-  // Skip the '.' or '->' token and get the member's name
+  // 跳过'.' 或者 '->'
+  // 获取成员名字
   scan(&Token);
   ident();
 
-  // Find the matching member's name in the type
-  // Die if we can't find it
+  // 查找是否存在这个成员
   for (m = typeptr->member; m != NULL; m = m->next)
     if (!strcmp(m->name, Text))
       break;
   if (m == NULL)
     fatals("No member found in struct/union: ", Text);
 
-  // Make the left tree an rvalue
+  // 令左树为右值
   left->rvalue = 1;
 
-  // Build an A_INTLIT node with the offset
+  // 创建一个A_INTLIT节点，表示位移
   right = mkastleaf(A_INTLIT, P_INT, NULL, NULL, m->st_posn);
 
-  // Add the member's offset to the base of the struct/union
-  // and dereference it. Still an lvalue at this point
+  // 返回一个语法树节点，该节点是给这个struct/union的基地址加上位移
+  // 然后再在这个节点基础上，再加个节点来解引用。现在这些节点还是左值
   left =
     mkastnode(A_ADD, pointer_to(m->type), m->ctype, left, NULL, right, NULL,
 	      0);
@@ -164,23 +160,22 @@ static struct ASTnode *member_access(struct ASTnode *left, int withpointer) {
   return (left);
 }
 
-// Parse a parenthesised expression and
-// return an AST node representing it.
+// 解析括号表达式，返回语法树
 static struct ASTnode *paren_expression(int ptp) {
   struct ASTnode *n;
   int type = 0;
   struct symtable *ctype = NULL;
 
-  // Beginning of a parenthesised expression, skip the '('.
+  // 跳过'('
   scan(&Token);
 
-  // If the token after is a type identifier, this is a cast expression
+  // 如果后面跟的是一个类型标识符，有可能是一个cast表达式
   switch (Token.token) {
   case T_IDENT:
-    // We have to see if the identifier matches a typedef.
-    // If not, treat it as an expression.
+    // 如果一个标识符匹配一个typedef
+    // 如果不是，那就是普通表达式
     if (findtypedef(Text) == NULL) {
-      n = binexpr(0);	// ptp is zero as expression inside ( )
+      n = binexpr(0);	// ptp是0，当表达式在( )里
       break;
     }
   case T_VOID:
@@ -190,24 +185,24 @@ static struct ASTnode *paren_expression(int ptp) {
   case T_STRUCT:
   case T_UNION:
   case T_ENUM:
-    // Get the type inside the parentheses
+    // 在括号里面获取类型
     type = parse_cast(&ctype);
 
-    // Skip the closing ')' and then parse the following expression
+    // 跳过')'，然后解析接下来的表达式
     rparen();
 
   default:
-    n = binexpr(ptp);		// Scan in the expression. We pass in ptp
-				// as the cast doesn't change the
-				// expression's precedence
+    n = binexpr(ptp);		// 扫描表达式，我们传入ptp，是因为cast不会改变表达式优先级
+
   }
 
-  // We now have at least an expression in n, and possibly a non-zero type
-  // in type if there was a cast. Skip the closing ')' if there was no cast.
+  // n现在至少有一个表达式，
+  // type如果是非0，那就代表有cast
+  // type如果是0，代表没有cast，那就跳过')'
   if (type == 0)
     rparen();
   else
-    // Otherwise, make a unary AST node for the cast
+    // 否则，为cast创建一个单语法树节点
     n = mkastunary(A_CAST, type, ctype, n, NULL, 0);
   return (n);
 }
