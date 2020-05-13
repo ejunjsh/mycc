@@ -10,35 +10,35 @@ static int typedef_declaration(struct symtable **ctype);
 static int type_of_typedef(char *name, struct symtable **ctype);
 static void enum_declaration(void);
 
-// Parse the current token and return a primitive type enum value,
-// a pointer to any composite type and possibly modify
-// the class of the type.
+// 解析当前token和返回一个原始类型枚举值，
+// 返回一个指向复合类型的指针
+// 可能会修改类型的存储类
 int parse_type(struct symtable **ctype, int *class) {
   int type, exstatic = 1;
 
-  // See if the class has been changed to extern or static
+  // 是否有一个存储类变成extern或者static
   while (exstatic) {
     switch (Token.token) {
       case T_EXTERN:
-	if (*class == C_STATIC)
-	  fatal("Illegal to have extern and static at the same time");
-	*class = C_EXTERN;
-	scan(&Token);
-	break;
+        if (*class == C_STATIC)
+            fatal("Illegal to have extern and static at the same time");
+        *class = C_EXTERN;
+        scan(&Token);
+        break;
       case T_STATIC:
-	if (*class == C_LOCAL)
-	  fatal("Compiler doesn't support static local declarations");
-	if (*class == C_EXTERN)
-	  fatal("Illegal to have extern and static at the same time");
-	*class = C_STATIC;
-	scan(&Token);
-	break;
+        if (*class == C_LOCAL)
+            fatal("Compiler doesn't support static local declarations");
+        if (*class == C_EXTERN)
+            fatal("Illegal to have extern and static at the same time");
+        *class = C_STATIC;
+        scan(&Token);
+        break;
       default:
-	exstatic = 0;
+	    exstatic = 0;
     }
   }
 
-  // Now work on the actual type keyword
+  // 现在开始解析类型关键字
   switch (Token.token) {
     case T_VOID:
       type = P_VOID;
@@ -64,13 +64,13 @@ int parse_type(struct symtable **ctype, int *class) {
       type = P_STRUCT;
       *ctype = composite_declaration(P_STRUCT);
       if (Token.token == T_SEMI)
-	type = -1;
+	    type = -1;
       break;
     case T_UNION:
       type = P_UNION;
       *ctype = composite_declaration(P_UNION);
       if (Token.token == T_SEMI)
-	type = -1;
+	    type = -1;
       break;
     case T_ENUM:
       type = P_INT;		// Enums are really ints
