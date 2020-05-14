@@ -57,9 +57,9 @@ int parse_type(struct symtable **ctype, int *class) {
       scan(&Token);
       break;
 
-      // For the following, if we have a ';' after the
-      // parsing then there is no type, so return -1.
-      // Example: struct x {int y; int z};
+      // 如果类型后面跟着';' ，那就是代表不是在用类型声明变量
+      // 而是声明类型，所以返回-1
+      // 例如: struct x {int y; int z};
     case T_STRUCT:
       type = P_STRUCT;
       *ctype = composite_declaration(P_STRUCT);
@@ -73,15 +73,15 @@ int parse_type(struct symtable **ctype, int *class) {
 	    type = -1;
       break;
     case T_ENUM:
-      type = P_INT;		// Enums are really ints
+      type = P_INT;		// 枚举其实就是整型
       enum_declaration();
       if (Token.token == T_SEMI)
-	type = -1;
+	    type = -1;
       break;
     case T_TYPEDEF:
       type = typedef_declaration(ctype);
       if (Token.token == T_SEMI)
-	type = -1;
+	    type = -1;
       break;
     case T_IDENT:
       type = type_of_typedef(Text, ctype);
@@ -92,8 +92,7 @@ int parse_type(struct symtable **ctype, int *class) {
   return (type);
 }
 
-// Given a type parsed by parse_type(), scan in any following
-// '*' tokens and return the new type
+// 给定一个由函数parse_type()解析过的type，解析接下来出现的'*'，并返回新类型
 int parse_stars(int type) {
 
   while (1) {
@@ -105,14 +104,14 @@ int parse_stars(int type) {
   return (type);
 }
 
-// Parse a type which appears inside a cast
+// 解析cast（类型转换）
 int parse_cast(struct symtable **ctype) {
   int type, class = 0;
 
-  // Get the type inside the parentheses
+  // 从括号里面获取类型
   type = parse_stars(parse_type(ctype, &class));
 
-  // Do some error checking. I'm sure more can be done
+  // 错误检查，目前不支持，强转到复合类型
   if (type == P_STRUCT || type == P_UNION || type == P_VOID)
     fatal("Cannot cast to a struct, union or void type");
   return (type);
@@ -716,7 +715,7 @@ static int typedef_declaration(struct symtable **ctype) {
   return (type);
 }
 
-// Given a typedef name, return the type it represents
+// 给定一个typedef名字，返回它表示的类型
 static int type_of_typedef(char *name, struct symtable **ctype) {
   struct symtable *t;
 

@@ -207,8 +207,8 @@ static struct ASTnode *paren_expression(int ptp) {
   return (n);
 }
 
-// Parse a primary factor and return an
-// AST node representing it.
+// 解析主语，主语就类似操作数但不包括前缀和后缀，例如 ++a[i],a就是这个函数要处理的，++是prefix()处理，[i]是postfix()处理
+// 返回语法树节点
 static struct ASTnode *primary(int ptp) {
   struct ASTnode *n;
   struct symtable *enumptr;
@@ -223,25 +223,25 @@ static struct ASTnode *primary(int ptp) {
   case T_EXTERN:
     fatal("Compiler doesn't support static or extern local declarations");
   case T_SIZEOF:
-    // Skip the T_SIZEOF and ensure we have a left parenthesis
+    // 跳过T_SIZEOF和保证我们有个左括号
     scan(&Token);
     if (Token.token != T_LPAREN)
       fatal("Left parenthesis expected after sizeof");
     scan(&Token);
 
-    // Get the type inside the parentheses
+    // 获取括号中的类型
     type = parse_stars(parse_type(&ctype, &class));
 
-    // Get the type's size
+    // 获取类型大小
     size = typesize(type, ctype);
     rparen();
 
-    // Make a leaf node int literal with the size
+    // 创建一个叶子节点，整型字面量，值为类型大小
     return (mkastleaf(A_INTLIT, P_INT, NULL, NULL, size));
 
   case T_INTLIT:
-    // For an INTLIT token, make a leaf AST node for it.
-    // Make it a P_CHAR if it's within the P_CHAR range
+    // 对于INTLIT， 直接创建个叶子节点
+    // 如果在字符的范围，那就令它为P_CHAR
     if (Token.intvalue >= 0 && Token.intvalue < 256)
       n = mkastleaf(A_INTLIT, P_CHAR, NULL, NULL, Token.intvalue);
     else
@@ -249,32 +249,31 @@ static struct ASTnode *primary(int ptp) {
     break;
 
   case T_STRLIT:
-    // For a STRLIT token, generate the assembly for it.
+    // 对于STRLIT，生成汇编给它
     id = genglobstr(Text, 0);
 
-    // For successive STRLIT tokens, append their contents
-    // to this one
+    // 对于后面还有STRLIT，直接加在后面
     while (1) {
       scan(&Peektoken);
       if (Peektoken.token != T_STRLIT) break;
       genglobstr(Text, 1);
-      scan(&Token);	// To skip it properly
+      scan(&Token);	// 跳过，才能偷窥下一个
     }
 
-    // Now make a leaf AST node for it. id is the string's label.
+    // 现在建一个叶子节点，id就是字符的标签号
     genglobstrend();
     n = mkastleaf(A_STRLIT, pointer_to(P_CHAR), NULL, NULL, id);
     break;
 
   case T_IDENT:
-    // If the identifier matches an enum value,
-    // return an A_INTLIT node
+    // 如果标识符是个枚举值
+    // 返回一个A_INTLIT节点
     if ((enumptr = findenumval(Text)) != NULL) {
       n = mkastleaf(A_INTLIT, P_INT, NULL, NULL, enumptr->st_posn);
       break;
     }
 
-    // See if this identifier exists as a symbol. For arrays, set rvalue to 1.
+    // 检查标识符是否存在在符号表里面。如果是数组，设置rvalue为1
     if ((varptr = findsymbol(Text)) == NULL)
       fatals("Unknown variable or function", Text);
     switch (varptr->stype) {
@@ -286,10 +285,10 @@ static struct ASTnode *primary(int ptp) {
       n->rvalue = 1;
       break;
     case S_FUNCTION:
-      // Function call, see if the next token is a left parenthesis
+      // 函数调用，检查下个token是不是个左括号
       scan(&Token);
       if (Token.token != T_LPAREN)
-	fatals("Function name used without parentheses", Text);
+	      fatals("Function name used without parentheses", Text);
       return (funccall());
     default:
       fatals("Identifier not a scalar or array variable", Text);
@@ -304,63 +303,62 @@ static struct ASTnode *primary(int ptp) {
     fatals("Expecting a primary expression, got token", Token.tokstr);
   }
 
-  // Scan in the next token and return the leaf node
+  // 扫描下一个token，返回叶子节点
   scan(&Token);
   return (n);
 }
 
-// Parse a postfix expression and return
-// an AST node representing it. The
-// identifier is already in Text.
+// 解析后缀表达式，并返回语法树节点
+// 标识符已经在Text变量里面
 static struct ASTnode *postfix(int ptp) {
   struct ASTnode *n;
 
-  // Get the primary expression
+  // 获取主语表达式
   n = primary(ptp);
 
-  // Loop until there are no more postfix operators
+  // 循环直到没有后缀操作符
   while (1) {
     switch (Token.token) {
     case T_LBRACKET:
-      // An array reference
+      // 访问数组
       n = array_access(n);
       break;
 
     case T_DOT:
-      // Access into a struct or union
+      // 访问struct/union
       n = member_access(n, 0);
       break;
 
     case T_ARROW:
-      // Pointer access into a struct or union
+      // 指针访问struct/union
       n = member_access(n, 1);
       break;
 
     case T_INC:
-      // Post-increment: skip over the token
+      // 后缀加加
       if (n->rvalue == 1)
-	fatal("Cannot ++ on rvalue");
-      scan(&Token);
+	      fatal("Cannot ++ on rvalue");
+      scan(&Token); // 跳过token
 
-      // Can't do it twice
+      // 不能做两次
       if (n->op == A_POSTINC || n->op == A_POSTDEC)
-	fatal("Cannot ++ and/or -- more than once");
+	      fatal("Cannot ++ and/or -- more than once");
 
-      // and change the AST operation
+      // 改变节点类型
       n->op = A_POSTINC;
       break;
 
     case T_DEC:
-      // Post-decrement: skip over the token
+      // 后缀减减
       if (n->rvalue == 1)
-	fatal("Cannot -- on rvalue");
-      scan(&Token);
+	      fatal("Cannot -- on rvalue");
+      scan(&Token); // 跳过token
 
-      // Can't do it twice
+      // 不能做两次
       if (n->op == A_POSTINC || n->op == A_POSTDEC)
-	fatal("Cannot ++ and/or -- more than once");
+	      fatal("Cannot ++ and/or -- more than once");
 
-      // and change the AST operation
+      // 改变节点类型
       n->op = A_POSTDEC;
       break;
 
@@ -369,29 +367,29 @@ static struct ASTnode *postfix(int ptp) {
     }
   }
 
-  return (NULL);		// Keep -Wall happy
+  return (NULL);
 }
 
 
-// Convert a binary operator token into a binary AST operation.
-// We rely on a 1:1 mapping from token to AST operation
+// 转换一个二元操作到一个二叉语法树操作
+// 由于我们已经是一一映射了，所以不需要switch case来写了
 static int binastop(int tokentype) {
   if (tokentype > T_EOF && tokentype <= T_MOD)
     return (tokentype);
   fatals("Syntax error, token", Tstring[tokentype]);
-  return (0);			// Keep -Wall happy
+  return (0);		
 }
 
-// Return true if a token is right-associative,
-// false otherwise.
+// 如果token是右关联，就返回true，否则false
+// 例如a=b+1,=就是右关联，因为要先算=右边先
 static int rightassoc(int tokentype) {
   if (tokentype >= T_ASSIGN && tokentype <= T_ASSLASH)
     return (1);
   return (0);
 }
 
-// Operator precedence for each token. Must
-// match up with the order of tokens in defs.h
+// 操作符优先级
+// 顺序必须跟defs.h定义的一致
 static int OpPrec[] = {
   0, 10, 10,			// T_EOF, T_ASSIGN, T_ASPLUS,
   10, 10,			// T_ASMINUS, T_ASSTAR,
@@ -406,8 +404,7 @@ static int OpPrec[] = {
   110, 110, 110			// T_STAR, T_SLASH, T_MOD
 };
 
-// Check that we have a binary operator and
-// return its precedence.
+// 检查是否为一个二元操作符，并返回它的优先级
 static int op_precedence(int tokentype) {
   int prec;
   if (tokentype > T_MOD)
@@ -426,8 +423,7 @@ static int op_precedence(int tokentype) {
 //     | '--' prefix_expression
 //     ;
 
-// Parse a prefix expression and return 
-// a sub-tree representing it.
+// 解析前缀表达式，并返回语法树节点
 static struct ASTnode *prefix(int ptp) {
   struct ASTnode *tree;
   switch (Token.token) {
