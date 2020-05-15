@@ -428,100 +428,99 @@ static struct ASTnode *prefix(int ptp) {
   struct ASTnode *tree;
   switch (Token.token) {
   case T_AMPER:
-    // Get the next token and parse it
-    // recursively as a prefix expression
+    // 获取下个token，然后解析它
+    // 递归执行
     scan(&Token);
     tree = prefix(ptp);
 
-    // Ensure that it's an identifier
+    // 保证是标识符
     if (tree->op != A_IDENT)
       fatal("& operator must be followed by an identifier");
 
-    // Prevent '&' being performed on an array
+    // 防止'&'用在数组上
     if (tree->sym->stype == S_ARRAY)
       fatal("& operator cannot be performed on an array");
 
-    // Now change the operator to A_ADDR and the type to
-    // a pointer to the original type
+    // 改变操作为A_ADDR，类型改成指向原来类型的指针
     tree->op = A_ADDR;
     tree->type = pointer_to(tree->type);
     break;
   case T_STAR:
-    // Get the next token and parse it
-    // recursively as a prefix expression.
-    // Make it an rvalue
+    // 获取下个token，然后解析它
+    // 递归执行
+    // 标记为右值
     scan(&Token);
     tree = prefix(ptp);
     tree->rvalue= 1;
 
-    // Ensure the tree's type is a pointer
+    // 保证树的类型是指针
     if (!ptrtype(tree->type))
       fatal("* operator must be followed by an expression of pointer type");
 
-    // Prepend an A_DEREF operation to the tree
+    // 创建A_DEREF节点
     tree =
       mkastunary(A_DEREF, value_at(tree->type), tree->ctype, tree, NULL, 0);
     break;
   case T_MINUS:
-    // Get the next token and parse it
-    // recursively as a prefix expression
+    // 获取下个token，然后解析它
+    // 递归执行
     scan(&Token);
     tree = prefix(ptp);
 
-    // Prepend a A_NEGATE operation to the tree and
-    // make the child an rvalue. Because chars are unsigned,
-    // also widen this if needed to int so that it's signed
+    // 创建A_NEGATE节点
+    // 标记为右值
+    // 由于字符类型是无符号的，所以在这里要转成整型
     tree->rvalue = 1;
     if (tree->type == P_CHAR)
       tree->type = P_INT;
     tree = mkastunary(A_NEGATE, tree->type, tree->ctype, tree, NULL, 0);
     break;
   case T_INVERT:
-    // Get the next token and parse it
-    // recursively as a prefix expression
+    // 获取下个token，然后解析它
+    // 递归执行
     scan(&Token);
     tree = prefix(ptp);
 
-    // Prepend a A_INVERT operation to the tree and
-    // make the child an rvalue.
+    // 创建A_INVERT节点
+    // 标记为右值
     tree->rvalue = 1;
     tree = mkastunary(A_INVERT, tree->type, tree->ctype, tree, NULL, 0);
     break;
   case T_LOGNOT:
-    // Get the next token and parse it
-    // recursively as a prefix expression
+    // 获取下个token，然后解析它
+    // 递归执行
     scan(&Token);
     tree = prefix(ptp);
 
-    // Prepend a A_LOGNOT operation to the tree and
-    // make the child an rvalue.
+    // 创建A_LOGNOT节点
+    // 标记为右值
     tree->rvalue = 1;
     tree = mkastunary(A_LOGNOT, tree->type, tree->ctype, tree, NULL, 0);
     break;
   case T_INC:
-    // Get the next token and parse it
-    // recursively as a prefix expression
+    // 获取下个token，然后解析它
+    // 递归执行
     scan(&Token);
     tree = prefix(ptp);
 
-    // For now, ensure it's an identifier
+    // 保证是标识符
     if (tree->op != A_IDENT)
       fatal("++ operator must be followed by an identifier");
 
-    // Prepend an A_PREINC operation to the tree
+    // 创建A_PREINC节点
     tree = mkastunary(A_PREINC, tree->type, tree->ctype, tree, NULL, 0);
     break;
   case T_DEC:
-    // Get the next token and parse it
-    // recursively as a prefix expression
+    // 获取下个token，然后解析它
+    // 递归执行
     scan(&Token);
     tree = prefix(ptp);
 
-    // For now, ensure it's an identifier
+    // 保证是标识符
     if (tree->op != A_IDENT)
       fatal("-- operator must be followed by an identifier");
 
-    // Prepend an A_PREDEC operation to the tree
+    // 创建A_PREDEC节点
     tree = mkastunary(A_PREDEC, tree->type, tree->ctype, tree, NULL, 0);
     break;
   default:
@@ -530,19 +529,19 @@ static struct ASTnode *prefix(int ptp) {
   return (tree);
 }
 
-// Return an AST tree whose root is a binary operator.
-// Parameter ptp is the previous token's precedence.
+// 返回一个语法树，树根是一个二元操作符
+// 参数ptp是之前token的优先级
 struct ASTnode *binexpr(int ptp) {
   struct ASTnode *left, *right;
   struct ASTnode *ltemp, *rtemp;
   int ASTop;
   int tokentype;
 
-  // Get the tree on the left.
-  // Fetch the next token at the same time.
+  // 获取树放在left
+  // 同时获得下个token
   left = prefix(ptp);
 
-  // If we hit one of several terminating tokens, return just the left node
+  // 如果遇到下面终结token之一，直接返回这个left节点
   tokentype = Token.token;
   if (tokentype == T_SEMI || tokentype == T_RPAREN ||
       tokentype == T_RBRACKET || tokentype == T_COMMA ||
@@ -551,77 +550,76 @@ struct ASTnode *binexpr(int ptp) {
     return (left);
   }
 
-  // While the precedence of this token is more than that of the
-  // previous token precedence, or it's right associative and
-  // equal to the previous token's precedence
+  // 当前token的优先级大于之前token的优先级(ptp)
+  // 或者是右关联同时跟之前token的优先级(ptp)相等
   while ((op_precedence(tokentype) > ptp) ||
 	 (rightassoc(tokentype) && op_precedence(tokentype) == ptp)) {
-    // Fetch in the next integer literal
+    // 获取下一个token
     scan(&Token);
 
-    // Recursively call binexpr() with the
-    // precedence of our token to build a sub-tree
+    // 递归调用binexpr()，其参数就是当前的优先级
+    // 创建子树放到right
     right = binexpr(OpPrec[tokentype]);
 
-    // Determine the operation to be performed on the sub-trees
+    // 判断操作符，执行相应操作
     ASTop = binastop(tokentype);
 
     switch (ASTop) {
+    // 三元操作符 aaa?bbb:ccc
     case A_TERNARY:
-      // Ensure we have a ':' token, scan in the expression after it
+      // 确认后面跟着的是':'
       match(T_COLON, ":");
       ltemp = binexpr(0);
 
-      // Build and return the AST for this statement. Use the middle
-      // expression's type as the return type. XXX We should also
-      // consider the third expression's type.
+      // 创建一个语法树节点，然后返回
+      // 中间表达式（right）的类型作为该节点类型
+      // TODO: 为什么不考虑下第三个表达式（left）的类型呢
       return (mkastnode
 	      (A_TERNARY, right->type, right->ctype, left, right, ltemp,
 	       NULL, 0));
 
     case A_ASSIGN:
-      // Assignment
-      // Make the right tree into an rvalue
+      // 赋值
+      // 令right树为右值
       right->rvalue = 1;
 
-      // Ensure the right's type matches the left
+      // 保证right的类型匹配left的
       right = modify_type(right, left->type, left->ctype, 0);
       if (right == NULL)
-	fatal("Incompatible expression in assignment");
+	      fatal("Incompatible expression in assignment");
 
-      // Make an assignment AST tree. However, switch
-      // left and right around, so that the right expression's 
-      // code will be generated before the left expression
+      // 交换right和left
+      // 这样right表达式生成的汇编会在left表达式前面
+      // 例如a=b+1,是不是b+1要先执行呢 
       ltemp = left;
       left = right;
       right = ltemp;
       break;
 
     default:
-      // We are not doing a ternary or assignment, so both trees should
-      // be rvalues. Convert both trees into rvalue if they are lvalue trees
+      // 如果没有三元或者赋值，那就把left和right树都变成右值
       left->rvalue = 1;
       right->rvalue = 1;
 
-      // Ensure the two types are compatible by trying
-      // to modify each tree to match the other's type.
+      // 保证这两个类型要兼容，
+      // 如果兼容的话，修改其中一个树去匹配另外一个树
       ltemp = modify_type(left, right->type, right->ctype, ASTop);
       rtemp = modify_type(right, left->type, left->ctype, ASTop);
       if (ltemp == NULL && rtemp == NULL)
-	fatal("Incompatible types in binary expression");
+	      fatal("Incompatible types in binary expression");
       if (ltemp != NULL)
-	left = ltemp;
+	      left = ltemp;
       if (rtemp != NULL)
-	right = rtemp;
+	      right = rtemp;
     }
 
-    // Join that sub-tree with ours. Convert the token
-    // into an AST operation at the same time.
+    // left和right合成一个新节点又放回left
+    // 新节点的操作是从token类型转换过来的
     left =
       mkastnode(binastop(tokentype), left->type, left->ctype, left, NULL,
 		right, NULL, 0);
 
-    // Some operators produce an int result regardless of their operands
+    // 下面的操作符，都使节点类型变成整型，不管操作数是什么类型
     switch (binastop(tokentype)) {
     case A_LOGOR:
     case A_LOGAND:
@@ -634,19 +632,18 @@ struct ASTnode *binexpr(int ptp) {
       left->type = P_INT;
     }
 
-    // Update the details of the current token.
-    // If we hit a terminating token, return just the left node
+    // 获取最新的token类型
+    // 如果到了结束token，返回left节点
     tokentype = Token.token;
     if (tokentype == T_SEMI || tokentype == T_RPAREN ||
-	tokentype == T_RBRACKET || tokentype == T_COMMA ||
-	tokentype == T_COLON || tokentype == T_RBRACE) {
+        tokentype == T_RBRACKET || tokentype == T_COMMA ||
+        tokentype == T_COLON || tokentype == T_RBRACE) {
       left->rvalue = 1;
       return (left);
     }
   }
 
-  // Return the tree we have when the precedence
-  // is the same or lower
+  // 如果优先级一样或者更加低，直接返回
   left->rvalue = 1;
   return (left);
 }
