@@ -117,84 +117,80 @@ int parse_cast(struct symtable **ctype) {
   return (type);
 }
 
-// Given a type, parse an expression of literals and ensure
-// that the type of this expression matches the given type.
-// Parse any type cast that precedes the expression.
-// If an integer literal, return this value.
-// If a string literal, return the label number of the string.
+// 给定一个类型type，解析一个字面量表达式，保证type跟表达式的类型一致
+// 解析任何在表达式之前类型转换（cast）
+// 如果是整型字面量，返回该值
+// 如果是字符串字面量，返回标签号
 int parse_literal(int type) {
   struct ASTnode *tree;
 
-  // Parse the expression and optimise the resulting AST tree
+  // 解析表达式，并优化解析出来的语法树tree
   tree = optimise(binexpr(0));
 
-  // If there's a cast, get the child and
-  // mark it as having the type from the cast
+  // 如果这里有个cast，获取子树应用到tree上
   if (tree->op == A_CAST) {
     tree->left->type = tree->type;
     tree = tree->left;
   }
 
-  // The tree must now have an integer or string literal
+  // 这颗tree现在必须是个整型或者字符串字面量
   if (tree->op != A_INTLIT && tree->op != A_STRLIT)
     fatal("Cannot initialise globals with a general expression");
 
-  // If the type is char * and
+  // 如果type是char*
   if (type == pointer_to(P_CHAR)) {
-    // We have a string literal, return the label number
+    // tree是字符字面量，返回标签号
     if (tree->op == A_STRLIT)
       return (tree->a_intvalue);
-    // We have a zero int literal, so that's a NULL
+    // tree是整型零值，所以是个NULL，所以返回0
     if (tree->op == A_INTLIT && tree->a_intvalue == 0)
       return (0);
   }
 
-  // We only get here with an integer literal. The input type
-  // is an integer type and is wide enough to hold the literal value
+  // 代码走到这里就是处理整型字面量量
+  // 输入的type必须是个整型，同时足够宽来容纳这个字面值
   if (inttype(type) && typesize(type, NULL) >= typesize(tree->type, NULL))
     return (tree->a_intvalue);
 
   fatal("Type mismatch: literal vs. variable");
-  return (0);			// Keep -Wall happy
+  return (0);		
 }
 
-// Given a pointer to a symbol that may already exist
-// return true if this symbol doesn't exist. We use
-// this function to convert externs into globals
+// 给定一个符号表指针，如果该符号不存在，返回true
+// 用这个函数来转换extern（外部）到global（全局）
 static int is_new_symbol(struct symtable *sym, int class, 
 		  int type, struct symtable *ctype) {
 
-  // There is no existing symbol, thus is new
+  // 不存在，代表是新的
   if (sym==NULL) return(1);
 
-  // global versus extern: if they match that it's not new
-  // and we can convert the class to global
+  // 如果类型匹配，就转换为global（全局）
   if ((sym->class== C_GLOBAL && class== C_EXTERN)
       || (sym->class== C_EXTERN && class== C_GLOBAL)) {
 
-      // If the types don't match, there's a problem
+      // 类型不匹配
       if (type != sym->type)
         fatals("Type mismatch between global/extern", sym->name);
 
-      // Struct/unions, also compare the ctype
+      // Struct/unions, 比较ctype
       if (type >= P_STRUCT && ctype != sym->ctype)
         fatals("Type mismatch between global/extern", sym->name);
 
-      // If we get to here, the types match, so mark the symbol
-      // as global
+      // 到这里，代表类型匹配来，转换为global（全局）
       sym->class= C_GLOBAL;
-      // Return that symbol is not new
+      // 返回0，表示符号不是新的
       return(0);
   }
 
-  // It must be a duplicate symbol if we get here
+  // 如果到了这里，代表重复定义
   fatals("Duplicate global variable declaration", sym->name);
-  return(-1);	// Keep -Wall happy
+  return(-1);	
 }
 
-// Given the type, name and class of a scalar variable,
-// parse any initialisation value and allocate storage for it.
-// Return the variable's symbol table entry.
+// 给定标量变量的类型（type），变量名（name），存储类（class），
+// 解析初始化值，和分配空间给他
+// 返回该变量的符号表指针
+// *什么是标量变量，其实就是除开函数，数组之外的变量，应该没错吧
 static struct symtable *scalar_declaration(char *varname, int type,
 					   struct symtable *ctype,
 					   int class, struct ASTnode **tree) {
@@ -202,12 +198,12 @@ static struct symtable *scalar_declaration(char *varname, int type,
   struct ASTnode *varnode, *exprnode;
   *tree = NULL;
 
-  // Add this as a known scalar
+  // 加入到相应的符号表
   switch (class) {
     case C_STATIC:
     case C_EXTERN:
     case C_GLOBAL:
-      // See if this variable is new or already exists
+      // 检查变量是新的还是已经存在
       sym= findglob(varname);
       if (is_new_symbol(sym, class, type, ctype))
         sym = addglob(varname, type, ctype, S_VARIABLE, class, 1, 0);
@@ -223,79 +219,78 @@ static struct symtable *scalar_declaration(char *varname, int type,
       break;
   }
 
-  // The variable is being initialised
+  // 这个变量需要初始化
   if (Token.token == T_ASSIGN) {
-    // Only possible for a global or local
+    // 只能在全局或者本地
     if (class != C_GLOBAL && class != C_LOCAL && class != C_STATIC)
       fatals("Variable can not be initialised", varname);
     scan(&Token);
 
-    // Globals must be assigned a literal value
+    // 全局只能是字面量值
     if (class == C_GLOBAL || class == C_STATIC) {
-      // Create one initial value for the variable and
-      // parse this value
+      // 为这个变量创建一个初始值，同时解析这个值
       sym->initlist = (int *) malloc(sizeof(int));
       sym->initlist[0] = parse_literal(type);
     }
+    // 处理本地
     if (class == C_LOCAL) {
-      // Make an A_IDENT AST node with the variable
+      // 为这个变量创建一个A_IDENT语法树节点
       varnode = mkastleaf(A_IDENT, sym->type, sym->ctype, sym, 0);
 
-      // Get the expression for the assignment, make into a rvalue
+      // 获得这个赋值的表达式语法树，同时令他右值
       exprnode = binexpr(0);
       exprnode->rvalue = 1;
 
-      // Ensure the expression's type matches the variable
+      // 保证表达式类型匹配这个变量
       exprnode = modify_type(exprnode, varnode->type, varnode->ctype, 0);
       if (exprnode == NULL)
-	fatal("Incompatible expression in assignment");
+	      fatal("Incompatible expression in assignment");
 
-      // Make an assignment AST tree
+      // 创建一个赋值语法树
       *tree = mkastnode(A_ASSIGN, exprnode->type, exprnode->ctype, exprnode,
 			NULL, varnode, NULL, 0);
     }
   }
 
-  // Generate any global space
+  // 如果包含全局或静态变量定义的话，创建全局空间
   if (class == C_GLOBAL || class == C_STATIC)
     genglobsym(sym);
 
   return (sym);
 }
 
-// Given the type, name and class of an array variable, parse
-// the size of the array, if any. Then parse any initialisation
-// value and allocate storage for it.
-// Return the variable's symbol table entry.
+// 给定数组变量的类型（type），变量名（name），存储类（class），
+// 解析数组大小，如果有，解析初始化值并分配空间给它
+// 返回该变量的符号表指针
 static struct symtable *array_declaration(char *varname, int type,
 					  struct symtable *ctype, int class) {
 
-  struct symtable *sym;	// New symbol table entry
-  int nelems = -1;	// Assume the number of elements won't be given
-  int maxelems;		// The maximum number of elements in the init list
-  int *initlist;	// The list of initial elements 
+  struct symtable *sym;	// 新符号表指针
+  int nelems = -1;	// 假设元素数量没有给定
+  int maxelems;		// 在初始化列表中最大元素数量
+  int *initlist;	// 初始化元素列表 
   int i = 0, j;
 
-  // Skip past the '['
+  // 跳过'['
   scan(&Token);
 
-  // See if we have an array size
+  // 看看是否有数组大小
   if (Token.token != T_RBRACKET) {
     nelems = parse_literal(P_INT);
     if (nelems <= 0)
       fatald("Array size is illegal", nelems);
   }
 
-  // Ensure we have a following ']'
+  // 保证接下来一定是']'
   match(T_RBRACKET, "]");
 
-  // Add this as a known array. We treat the
-  // array as a pointer to its elements' type
+  // 加到符号表 
+  // 这里把数组当成指向元素类型指针来处理
   switch (class) {
     case C_STATIC:
     case C_EXTERN:
     case C_GLOBAL:
-      // See if this variable is new or already exists
+      // 检查看看变量是否已经存在
       sym= findglob(varname);
       if (is_new_symbol(sym, class, pointer_to(type), ctype))
         sym = addglob(varname, pointer_to(type), ctype, S_ARRAY, class, 0, 0);
@@ -307,53 +302,53 @@ static struct symtable *array_declaration(char *varname, int type,
       fatal("Declaration of array parameters is not implemented");
   }
 
-  // Array initialisation
+  // 数组初始化
   if (Token.token == T_ASSIGN) {
     if (class != C_GLOBAL && class != C_STATIC)
       fatals("Variable can not be initialised", varname);
     scan(&Token);
 
-    // Get the following left curly bracket
+    // 匹配"{"
     match(T_LBRACE, "{");
 
 #define TABLE_INCREMENT 10
 
-    // If the array already has nelems, allocate that many elements
-    // in the list. Otherwise, start with TABLE_INCREMENT.
+    // 如果知道数组大小，直接分配内存
+    // 否则先分配TABLE_INCREMENT个内存
     if (nelems != -1)
       maxelems = nelems;
     else
       maxelems = TABLE_INCREMENT;
     initlist = (int *) malloc(maxelems * sizeof(int));
 
-    // Loop getting a new literal value from the list
+    // 循环从列表获得一个新的字面量值
     while (1) {
 
-      // Check we can add the next value, then parse and add it
+      // 看看我们能不能加下一个值
       if (nelems != -1 && i == maxelems)
-	fatal("Too many values in initialisation list");
+	      fatal("Too many values in initialisation list");
 
       initlist[i++] = parse_literal(type);
 
-      // Increase the list size if the original size was
-      // not set and we have hit the end of the current list
+      // 如果我们不知道数组大小的情况并到达列表最后，
+      // 重新分配列表大小，大小为之前大小加上TABLE_INCREMENT
       if (nelems == -1 && i == maxelems) {
-	maxelems += TABLE_INCREMENT;
-	initlist = (int *) realloc(initlist, maxelems * sizeof(int));
+        maxelems += TABLE_INCREMENT;
+        initlist = (int *) realloc(initlist, maxelems * sizeof(int));
       }
 
-      // Leave when we hit the right curly bracket
+      // 如果遇到"}",就退出
       if (Token.token == T_RBRACE) {
-	scan(&Token);
-	break;
+        scan(&Token);
+        break;
       }
 
-      // Next token must be a comma, then
+      // 下一个肯定是逗号
       comma();
     }
 
-    // Zero any unused elements in the initlist.
-    // Attach the list to the symbol table entry
+    // 对于a[7]={1,2,3};这种情况，用零来填充还没有初始化的值
+    // 把初始化列表放入符号表中
     for (j = i; j < sym->nelems; j++)
       initlist[j] = 0;
 
@@ -362,23 +357,22 @@ static struct symtable *array_declaration(char *varname, int type,
     sym->initlist = initlist;
   }
 
-  // Set the size of the array and the number of elements
-  // Only externs can have no elements.
+  // 设置数组大小和元素个数
+  // 只有extern（外部）变量可以没有元素
   if (class != C_EXTERN && nelems<=0)
     fatals("Array must have non-zero elements", sym->name);
 
   sym->nelems = nelems;
   sym->size = sym->nelems * typesize(type, ctype);
-  // Generate any global space
+  // 如果包含全局或静态变量定义的话，创建全局空间
   if (class == C_GLOBAL || class == C_STATIC)
     genglobsym(sym);
   return (sym);
 }
 
-// Given a pointer to the new function being declared and
-// a possibly NULL pointer to the function's previous declaration,
-// parse a list of parameters and cross-check them against the
-// previous declaration. Return the count of parameters
+// 给定一个新函数的符号表，和一个可能是NULL的旧函数符号表（函数原型）
+// 解析参数列表，跟旧的函数符号表比较
+// 返回函数参数个数
 static int param_declaration_list(struct symtable *oldfuncsym,
 				  struct symtable *newfuncsym) {
   int type, paramcnt = 0;
@@ -386,50 +380,49 @@ static int param_declaration_list(struct symtable *oldfuncsym,
   struct symtable *protoptr = NULL;
   struct ASTnode *unused;
 
-  // Get the pointer to the first prototype parameter
+  // 获取旧函数的成员
   if (oldfuncsym != NULL)
     protoptr = oldfuncsym->member;
 
-  // Loop getting any parameters
+  // 循环获取参数
   while (Token.token != T_RPAREN) {
 
-    // If the first token is 'void'
+    // 如果第一个token是'void'
     if (Token.token == T_VOID) {
-      // Peek at the next token. If a ')', the function
-      // has no parameters, so leave the loop.
+      // 偷看下个token，如果是')', 表示函数没有参数，离开循环  
       scan(&Peektoken);
       if (Peektoken.token == T_RPAREN) {
-	// Move the Peektoken into the Token
-	paramcnt = 0;
-	scan(&Token);
-	break;
+        // 把Peektoken放回到Token
+        paramcnt = 0;
+        scan(&Token);
+        break;
       }
     }
 
-    // Get the type of the next parameter
+    // 获得下一个参数的类型
     type = declaration_list(&ctype, C_PARAM, T_COMMA, T_RPAREN, &unused);
     if (type == -1)
       fatal("Bad type in parameter list");
 
-    // Ensure the type of this parameter matches the prototype
+    // 保证这个参数的类型跟旧的匹配
     if (protoptr != NULL) {
       if (type != protoptr->type)
-	fatald("Type doesn't match prototype for parameter", paramcnt + 1);
+	      fatald("Type doesn't match prototype for parameter", paramcnt + 1);
       protoptr = protoptr->next;
     }
     paramcnt++;
 
-    // Stop when we hit the right parenthesis
+    // 遇到右括号，退出循环
     if (Token.token == T_RPAREN)
       break;
-    // We need a comma as separator
+    // 否则看看是否是个逗号
     comma();
   }
 
   if (oldfuncsym != NULL && paramcnt != oldfuncsym->nelems)
     fatals("Parameter count mismatch for function", oldfuncsym->name);
 
-  // Return the count of parameters
+  // 返回函数参数
   return (paramcnt);
 }
 
@@ -437,7 +430,7 @@ static int param_declaration_list(struct symtable *oldfuncsym,
 // function_declaration: type identifier '(' parameter_list ')' ;
 //      | type identifier '(' parameter_list ')' compound_statement   ;
 //
-// Parse the declaration of function.
+// 解析函数定义
 static struct symtable *function_declaration(char *funcname, int type,
 					     struct symtable *ctype,
 					     int class) {
@@ -446,15 +439,13 @@ static struct symtable *function_declaration(char *funcname, int type,
   int endlabel, paramcnt;
   int linenum= Line;
 
-  // Text has the identifier's name. If this exists and is a
-  // function, get the id. Otherwise, set oldfuncsym to NULL.
+  // 如果如果之前有这个函数（原型），获取函数id。如果不存在设置oldfuncsym为空
   if ((oldfuncsym = findsymbol(funcname)) != NULL)
     if (oldfuncsym->stype != S_FUNCTION)
       oldfuncsym = NULL;
 
-  // If this is a new function declaration, get a
-  // label-id for the end label, and add the function
-  // to the symbol table,
+  // 如果这是个新函数定义，获取函数结束的标签号，
+  // 并把函数加入到符号表
   if (oldfuncsym == NULL) {
     endlabel = genlabel();
     // Assumption: functions only return scalar types, so NULL below
