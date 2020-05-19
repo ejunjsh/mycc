@@ -430,7 +430,7 @@ static int param_declaration_list(struct symtable *oldfuncsym,
 // function_declaration: type identifier '(' parameter_list ')' ;
 //      | type identifier '(' parameter_list ')' compound_statement   ;
 //
-// 解析函数定义
+// 解析函数声明
 static struct symtable *function_declaration(char *funcname, int type,
 					     struct symtable *ctype,
 					     int class) {
@@ -448,84 +448,80 @@ static struct symtable *function_declaration(char *funcname, int type,
   // 并把函数加入到符号表
   if (oldfuncsym == NULL) {
     endlabel = genlabel();
-    // Assumption: functions only return scalar types, so NULL below
+    // 假设：函数只会返回标量，所以设置NULL在ctype参数
     newfuncsym =
       addglob(funcname, type, NULL, S_FUNCTION, class, 0, endlabel);
   }
 
-  // Scan in the '(', any parameters and the ')'.
-  // Pass in any existing function prototype pointer
+  // 扫描'(',参数和 ')'
+  // 传递已存在的函数原型符号指针到param_declaration_list函数
   lparen();
   paramcnt = param_declaration_list(oldfuncsym, newfuncsym);
   rparen();
 
-  // If this is a new function declaration, update the
-  // function symbol entry with the number of parameters.
-  // Also copy the parameter list into the function's node.
+  // 如果是新函数声明，更新函数符号表的函数参数数量
+  // 同时拷贝参数列表到函数符号表里面
   if (newfuncsym) {
     newfuncsym->nelems = paramcnt;
     newfuncsym->member = Parmhead;
     oldfuncsym = newfuncsym;
   }
 
-  // Clear out the parameter list
+  // 清空参数列表
   Parmhead = Parmtail = NULL;
 
-  // If the declaration ends in a semicolon, only a prototype.
+  // 如果声明后面跟着分号，那就是个函数原型
   if (Token.token == T_SEMI)
     return (oldfuncsym);
 
-  // This is not just a prototype.
-  // Set the Functionid global to the function's symbol pointer
+  // 这不是个原型
+  // 设置函数符号表指针到Functionid
   Functionid = oldfuncsym;
 
-  // Get the AST tree for the compound statement and mark
-  // that we have parsed no loops or switches yet
+  // 从组合语句中获得语法树
+  // 同时清空以下两个标记，代表没有循环和开关（switch）
   Looplevel = 0;
   Switchlevel = 0;
   lbrace();
   tree = compound_statement(0);
   rbrace();
 
-  // If the function type isn't P_VOID ...
+  // 如果函数返回类型不是P_VOID
   if (type != P_VOID) {
 
-    // Error if no statements in the function
+    // 如果函数没有语句，报错
     if (tree == NULL)
       fatal("No statements in function with non-void type");
 
-    // Check that the last AST operation in the
-    // compound statement was a return statement
+    // 检查最后个语法树操作，是否是个返回语句
     finalstmt = (tree->op == A_GLUE) ? tree->right : tree;
     if (finalstmt == NULL || finalstmt->op != A_RETURN)
       fatal("No return for function with non-void type");
   }
 
-  // Build the A_FUNCTION node which has the function's symbol pointer
-  // and the compound statement sub-tree
+  // 创建一个A_FUNCTION语法树节点，它包含了函数符号指针和组合语句子树
   tree = mkastunary(A_FUNCTION, type, ctype, tree, oldfuncsym, endlabel);
   tree->linenum= linenum;
 
-  // Do optimisations on the AST tree
+  // 优化树
   tree = optimise(tree);
 
-  // Dump the AST tree if requested
+  // 如果需要，打印语法树
   if (O_dumpAST) {
     dumpAST(tree, NOLABEL, 0);
     fprintf(stdout, "\n\n");
   }
 
-  // Generate the assembly code for it
+  // 生成汇编
   genAST(tree, NOLABEL, NOLABEL, NOLABEL, 0);
 
-  // Now free the symbols associated with this function
+  // 清空跟这个函数相关的符号
   freeloclsyms();
   return (oldfuncsym);
 }
 
-// Parse composite type declarations: structs or unions.
-// Either find an existing struct/union declaration, or build
-// a struct/union symbol table entry and return its pointer.
+// 解析复合类型声明：struct/union
+// 找到一个存在或者创建一个新的符号表并返回它的指针
 static struct symtable *composite_declaration(int type) {
   struct symtable *ctype = NULL;
   struct symtable *m;
@@ -533,12 +529,12 @@ static struct symtable *composite_declaration(int type) {
   int offset;
   int t;
 
-  // Skip the struct/union keyword
+  // 跳过struct/union关键字
   scan(&Token);
 
-  // See if there is a following struct/union name
+  // 看看是否接下来是个struct/union名
   if (Token.token == T_IDENT) {
-    // Find any matching composite type
+    // 查找任何匹配的复合类型
     if (type == P_STRUCT)
       ctype = findstruct(Text);
     else
@@ -546,30 +542,28 @@ static struct symtable *composite_declaration(int type) {
     scan(&Token);
   }
 
-  // If the next token isn't an LBRACE , this is
-  // the usage of an existing struct/union type.
-  // Return the pointer to the type.
+  // 如果接下来不是是左括号，代表现在在用已存在的struct/union类型
+  // 直接返回指向类型的指针
   if (Token.token != T_LBRACE) {
     if (ctype == NULL)
       fatals("unknown struct/union type", Text);
     return (ctype);
   }
 
-  // Ensure this struct/union type hasn't been
-  // previously defined
+  // 保证struct/union类型之前没有被定义
   if (ctype)
     fatals("previously defined struct/union", Text);
 
-  // Build the composite type and skip the left brace
+  // 创建这个复合类型，跳过左括号
   if (type == P_STRUCT)
     ctype = addstruct(Text);
   else
     ctype = addunion(Text);
   scan(&Token);
 
-  // Scan in the list of members
+  // 扫描成员列表
   while (1) {
-    // Get the next member. m is used as a dummy
+    // 获得下个成员放在变量m
     t = declaration_list(&m, C_MEMBER, T_SEMI, T_RBRACE, &unused);
     if (t == -1)
       fatal("Bad type in member list");
@@ -579,105 +573,103 @@ static struct symtable *composite_declaration(int type) {
       break;
   }
 
-  // Attach to the struct type's node
+  // 把成员列表附着在复合类型节点上
   rbrace();
   if (Membhead == NULL)
     fatals("No members in struct", ctype->name);
   ctype->member = Membhead;
   Membhead = Membtail = NULL;
 
-  // Set the offset of the initial member
-  // and find the first free byte after it
+  // 设置第一个成员的位置，然后找到下一个空闲字节的位移
   m = ctype->member;
   m->st_posn = 0;
   offset = typesize(m->type, m->ctype);
 
-  // Set the position of each successive member in the composite type
-  // Unions are easy. For structs, align the member and find the next free byte
+  // 设置每个成员的位置
+  // union很简单，都是0，对于struct，要对齐成员，并找出下个空闲字节的位移
   for (m = m->next; m != NULL; m = m->next) {
-    // Set the offset for this member
+    // 为成员设置所在位置
     if (type == P_STRUCT)
       m->st_posn = genalign(m->type, offset, 1);
     else
       m->st_posn = 0;
 
-    // Get the offset of the next free byte after this member
+    // 获得当前成员下个空闲字节的位移
     offset += typesize(m->type, m->ctype);
   }
 
-  // Set the overall size of the composite type
+  // 设置复合类型的大小
   ctype->size = offset;
   return (ctype);
 }
 
-// Parse an enum declaration
+// 解析枚举声明
 static void enum_declaration(void) {
   struct symtable *etype = NULL;
   char *name = NULL;
   int intval = 0;
 
-  // Skip the enum keyword.
+  // 跳过枚举关键字
   scan(&Token);
 
-  // If there's a following enum type name, get a
-  // pointer to any existing enum type node.
+  // 如果接下来是枚举类型名，
+  // 获得一个指向存在枚举类型节点的指针
   if (Token.token == T_IDENT) {
     etype = findenumtype(Text);
-    name = strdup(Text);	// As it gets tromped soon
+    name = strdup(Text); // 拷贝出来
     scan(&Token);
   }
 
-  // If the next token isn't a LBRACE, check
-  // that we have an enum type name, then return
+  // 如果下个token不是个左括号
+  // 检查是否存在这个枚举类型，然后返回
   if (Token.token != T_LBRACE) {
     if (etype == NULL)
       fatals("undeclared enum type:", name);
     return;
   }
 
-  // We do have an LBRACE. Skip it
+  // 跳过左括号
   scan(&Token);
 
-  // If we have an enum type name, ensure that it
-  // hasn't been declared before.
+  // 如果之前有声明过，报错
   if (etype != NULL)
     fatals("enum type redeclared:", etype->name);
   else
-    // Build an enum type node for this identifier
+    // 创建一个枚举类型节点
     etype = addenum(name, C_ENUMTYPE, 0);
 
-  // Loop to get all the enum values
+  // 循环获得所有枚举值
   while (1) {
-    // Ensure we have an identifier
-    // Copy it in case there's an int literal coming up
-    ident();
-    name = strdup(Text);
 
-    // Ensure this enum value hasn't been declared before
+    // 保证我们有一个标识符    
+    ident();
+    name = strdup(Text); // 拷贝出来
+
+    // 保证之前枚举值没有声明过
     etype = findenumval(name);
     if (etype != NULL)
       fatals("enum value redeclared:", Text);
 
-    // If the next token is an '=', skip it and
-    // get the following int literal
+    // 如果下个token是'=',跳过它去获取接下来的整型字面量
     if (Token.token == T_ASSIGN) {
       scan(&Token);
       if (Token.token != T_INTLIT)
-	fatal("Expected int literal after '='");
+	      fatal("Expected int literal after '='");
       intval = Token.intvalue;
       scan(&Token);
     }
 
-    // Build an enum value node for this identifier.
-    // Increment the value for the next enum identifier.
+    // 创建一个枚举值节点
+    // 为下个枚举值加一
     etype = addenum(name, C_ENUMVAL, intval++);
 
-    // Bail out on a right curly bracket, else get a comma
+    // 如果是右括号，退出
+    // 否则匹配逗号，然后继续
     if (Token.token == T_RBRACE)
       break;
     comma();
   }
-  scan(&Token);			// Skip over the right curly bracket
+  scan(&Token);			// 跳过右括号
 }
 
 // Parse a typedef declaration and return the type
@@ -685,22 +677,23 @@ static void enum_declaration(void) {
 static int typedef_declaration(struct symtable **ctype) {
   int type, class = 0;
 
-  // Skip the typedef keyword.
+  // 跳过typedef关键字.
   scan(&Token);
 
-  // Get the actual type following the keyword
+  // 获得接下来实际的类型
   type = parse_type(ctype, &class);
   if (class != 0)
     fatal("Can't have static/extern in a typedef declaration");
 
-  // See if the typedef identifier already exists
+  // 检查看看是否已经存在
   if (findtypedef(Text) != NULL)
     fatals("redefinition of typedef", Text);
 
-  // Get any following '*' tokens
+  // 解析指针类型
+  // TODO：这里有问题
   type = parse_stars(type);
 
-  // It doesn't exist so add it to the typedef list
+  // 不存在就把它加入到typedef列表
   addtypedef(Text, type, *ctype);
   scan(&Token);
   return (type);
@@ -710,7 +703,7 @@ static int typedef_declaration(struct symtable **ctype) {
 static int type_of_typedef(char *name, struct symtable **ctype) {
   struct symtable *t;
 
-  // Look up the typedef in the list
+  // 查找typedef列表
   t = findtypedef(name);
   if (t == NULL)
     fatals("unknown type", name);
@@ -719,27 +712,24 @@ static int type_of_typedef(char *name, struct symtable **ctype) {
   return (t->type);
 }
 
-// Parse the declaration of a variable or function.
-// The type and any following '*'s have been scanned, and we
-// have the identifier in the Token variable.
-// The class argument is the symbol's class.
-// Return a pointer to the symbol's entry in the symbol table
+// 解析变量或函数的声明
+// 类型和接下来的*已经被扫描了，同时标识符已经扫描进Token变量
+// class参数是当前符号的存储类
+// 返回这个符号表的指针
 static struct symtable *symbol_declaration(int type, struct symtable *ctype,
 					   int class, struct ASTnode **tree) {
   struct symtable *sym = NULL;
-  char *varname = strdup(Text);
+  char *varname = strdup(Text); // 拷贝出来以防后面Text被覆盖
 
-  // Ensure that we have an identifier. 
-  // We copied it above so we can scan more tokens in, e.g.
-  // an assignment expression for a local variable.
+  // 保证我们有个标识符
   ident();
 
-  // Deal with function declarations
+  // 处理函数声明
   if (Token.token == T_LPAREN) {
     return (function_declaration(varname, type, ctype, class));
   }
 
-  // See if this array or scalar variable has already been declared
+  // 检查变量是否已经声明过了
   switch (class) {
     case C_EXTERN:
     case C_STATIC:
@@ -747,80 +737,79 @@ static struct symtable *symbol_declaration(int type, struct symtable *ctype,
     case C_LOCAL:
     case C_PARAM:
       if (findlocl(varname) != NULL)
-	fatals("Duplicate local variable declaration", varname);
+	      fatals("Duplicate local variable declaration", varname);
     case C_MEMBER:
       if (findmember(varname) != NULL)
-	fatals("Duplicate struct/union member declaration", varname);
+	      fatals("Duplicate struct/union member declaration", varname);
   }
 
-  // Add the array or scalar variable to the symbol table
+  // 把数组或标量变量加入到符号表
   if (Token.token == T_LBRACKET) {
     sym = array_declaration(varname, type, ctype, class);
-    *tree= NULL;	// Local arrays are not initialised
+    *tree= NULL;	// 本地数组不支持初始化
   } else
     sym = scalar_declaration(varname, type, ctype, class, tree);
   return (sym);
 }
 
-// Parse a list of symbols where there is an initial type.
-// Return the type of the symbols. et1 and et2 are end tokens.
+// 解析一列表的符号，它们都有同一个类型，例如 int a=0,b=0,c=1; 这个函数也支持普通变量或函数的解析
+// 返回符号们的类型，et1和et2是结束token
 int declaration_list(struct symtable **ctype, int class, int et1, int et2,
 		     struct ASTnode **gluetree) {
   int inittype, type;
   struct symtable *sym;
   struct ASTnode *tree;
-  *gluetree = NULL;
+  *gluetree = NULL; // TODO：有问题？
 
-  // Get the initial type. If -1, it was
-  // a composite type definition, return this
+  // 获取初始的类型， 如果是-1，代表是个复合类型声明，直接返回
   if ((inittype = parse_type(ctype, &class)) == -1)
     return (inittype);
 
-  // Now parse the list of symbols
+  // 现在解析一列表符号
   while (1) {
-    // See if this symbol is a pointer
+    // 看看这个符号是否是个指针
     type = parse_stars(inittype);
 
-    // Parse this symbol
+    // 解析符号
     sym = symbol_declaration(type, *ctype, class, &tree);
 
-    // We parsed a function, there is no list so leave
+    // 解析到函数，直接返回
     if (sym->stype == S_FUNCTION) {
       if (class != C_GLOBAL && class != C_STATIC)
-	fatal("Function definition not at global level");
+	      fatal("Function definition not at global level");
       return (type);
     }
 
-    // Glue any AST tree from a local declaration
-    // to build a sequence of assignments to perform
+    // 把tree粘起来（Glue）
+    // 这只在本地变量声明并有赋值操作的时候，
+    // 这样就能把一系列赋值操作连起来
     if (*gluetree == NULL)
       *gluetree = tree;
     else
       *gluetree =
-	mkastnode(A_GLUE, P_NONE, NULL, *gluetree, NULL, tree, NULL, 0);
+	      mkastnode(A_GLUE, P_NONE, NULL, *gluetree, NULL, tree, NULL, 0);
 
-    // We are at the end of the list, leave
+    // 遇到结束token，返回
     if (Token.token == et1 || Token.token == et2)
       return (type);
 
-    // Otherwise, we need a comma as separator
+    // 否则，匹配逗号，继续
     comma();
   }
 
-  return(0);	// Keep -Wall happy
+  return(0);	
 }
 
-// Parse one or more global declarations,
-// either variables, functions or structs
+// 解析全局声明，包括变量，函数，struct/union
 void global_declarations(void) {
   struct symtable *ctype= NULL;
   struct ASTnode *unused;
 
-  // Loop parsing one declaration list until the end of file
+  // 循环解析直到文件结束
   while (Token.token != T_EOF) {
     declaration_list(&ctype, C_GLOBAL, T_SEMI, T_EOF, &unused);
 
-    // Skip any separating semicolons
+    // 跳过分号
     if (Token.token == T_SEMI)
       scan(&Token);
   }
