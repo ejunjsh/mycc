@@ -46,49 +46,49 @@ static char *do_compile(char *filename) {
     exit(1);
   }
 
-  // Generate the pre-processor command
+  // 生成预处理器命令
   snprintf(cmd, TEXTLEN, "%s %s %s", CPPCMD, INCDIR, filename);
 
-  // Open up the pre-processor pipe
+  // 打开预处理器管道
   if ((Infile = popen(cmd, "r")) == NULL) {
     fprintf(stderr, "Unable to open %s: %s\n", filename, strerror(errno));
     exit(1);
   }
   Infilename = filename;
 
-  // Create the output file
+  // 创建输出文件
   if ((Outfile = fopen(Outfilename, "w")) == NULL) {
     fprintf(stderr, "Unable to create %s: %s\n", Outfilename,
 	    strerror(errno));
     exit(1);
   }
 
-  Line = 1;			// Reset the scanner
+  Line = 1;			// 重置扫描器
   Linestart = 1;
   Putback = '\n';
-  clear_symtable();		// Clear the symbol table
+  clear_symtable();		// 清空符号表
   if (O_verbose)
     printf("compiling %s\n", filename);
-  scan(&Token);			// Get the first token from the input
-  Peektoken.token = 0;		// and set there is no lookahead token
-  genpreamble(filename);	// Output the preamble
-  global_declarations();	// Parse the global declarations
-  genpostamble();		// Output the postamble
-  fclose(Outfile);		// Close the output file
+  scan(&Token);			//从输入中获取第一个token
+  Peektoken.token = 0;		// 设置没有向前看token
+  genpreamble(filename);	// 输出前置汇编
+  global_declarations();	// 解析开始,解析全局声明
+  genpostamble();		// 输出后置汇编
+  fclose(Outfile);		// 关闭输出文件
 
-  // Dump the symbol table if requested
+  // 如果需要,打印符号表
   if (O_dumpsym) {
     printf("Symbols for %s\n", filename);
     dumpsymtables();
     fprintf(stdout, "\n\n");
   }
 
-  freestaticsyms();		// Free any static symbols in the file
+  freestaticsyms();		// 清理静态符号表
   return (Outfilename);
 }
 
-// Given an input filename, assemble that file
-// down to object code. Return the object filename
+// 给定输入文件名,汇编这个文件到一个目标代码
+// 返回目标文件名
 char *do_assemble(char *filename) {
   char cmd[TEXTLEN];
   int err;
@@ -99,7 +99,7 @@ char *do_assemble(char *filename) {
     exit(1);
   }
 
-  // Build the assembly command and run it
+  // 创建汇编命令,然后运行它
   snprintf(cmd, TEXTLEN, "%s %s %s", ASCMD, outfilename, filename);
   if (O_verbose)
     printf("%s\n", cmd);
@@ -111,20 +111,20 @@ char *do_assemble(char *filename) {
   return (outfilename);
 }
 
-// Given a list of object files and an output filename,
-// link all of the object filenames together.
+// 给定一堆目标文件和输出文件名
+// 链接所有目标文件
 void do_link(char *outfilename, char **objlist) {
   int cnt, size = TEXTLEN;
   char cmd[TEXTLEN], *cptr;
   int err;
 
-  // Start with the linker command and the output file
+  // 先设置链接器命令和输出文件
   cptr = cmd;
   cnt = snprintf(cptr, size, "%s %s ", LDCMD, outfilename);
   cptr += cnt;
   size -= cnt;
 
-  // Now append each object file
+  // 然后添加每个目标文件
   while (*objlist != NULL) {
     cnt = snprintf(cptr, size, "%s ", *objlist);
     cptr += cnt;
@@ -141,7 +141,7 @@ void do_link(char *outfilename, char **objlist) {
   }
 }
 
-// Print out a usage if started incorrectly
+// 打印命令行帮助
 static void usage(char *prog) {
   fprintf(stderr, "Usage: %s [-vcSTM] [-o outfile] file [file ...]\n", prog);
   fprintf(stderr,
@@ -154,9 +154,8 @@ static void usage(char *prog) {
   exit(1);
 }
 
-// Main program: check arguments and print a usage
-// if we don't have an argument. Open up the input
-// file and call scanfile() to scan the tokens in it.
+// 主函数: 检查参数,如果没有参数,打印帮助
+// 打开多个输入文件,并开始编译
 enum { MAXOBJ = 100 };
 int main(int argc, char **argv) {
   char *outfilename = AOUT;
@@ -164,7 +163,7 @@ int main(int argc, char **argv) {
   char *objlist[MAXOBJ];
   int i, j, objcnt = 0;
 
-  // Initialise our variables
+  // 初始化变量
   O_dumpAST = 0;
   O_dumpsym = 0;
   O_keepasm = 0;
@@ -172,75 +171,74 @@ int main(int argc, char **argv) {
   O_verbose = 0;
   O_dolink = 1;
 
-  // Scan for command-line options
+  // 扫描命令行参数
   for (i = 1; i < argc; i++) {
-    // No leading '-', stop scanning for options
+    // 不是'-'开头,停止扫描
     if (*argv[i] != '-')
       break;
 
-    // For each option in this argument
+    // 根据不同的参数设置不同的变量
     for (j = 1; (*argv[i] == '-') && argv[i][j]; j++) {
       switch (argv[i][j]) {
-	case 'o':
-	  outfilename = argv[++i];	// Save & skip to next argument
-	  break;
-	case 'T':
-	  O_dumpAST = 1;
-	  break;
-	case 'M':
-	  O_dumpsym = 1;
-	  break;
-	case 'c':
-	  O_assemble = 1;
-	  O_keepasm = 0;
-	  O_dolink = 0;
-	  break;
-	case 'S':
-	  O_keepasm = 1;
-	  O_assemble = 0;
-	  O_dolink = 0;
-	  break;
-	case 'v':
-	  O_verbose = 1;
-	  break;
-	default:
-	  usage(argv[0]);
+      case 'o':
+        outfilename = argv[++i];	// 直接获取下一个参数
+        break;
+      case 'T':
+        O_dumpAST = 1;
+        break;
+      case 'M':
+        O_dumpsym = 1;
+        break;
+      case 'c':
+        O_assemble = 1;
+        O_keepasm = 0;
+        O_dolink = 0;
+        break;
+      case 'S':
+        O_keepasm = 1;
+        O_assemble = 0;
+        O_dolink = 0;
+        break;
+      case 'v':
+        O_verbose = 1;
+        break;
+      default:
+        usage(argv[0]);
       }
     }
   }
 
-  // Ensure we have at lease one input file argument
+  // 保证至少由一个输入文件参数
   if (i >= argc)
     usage(argv[0]);
 
-  // Work on each input file in turn
+  // 循环处理每个输入文件
   while (i < argc) {
-    asmfile = do_compile(argv[i]);	// Compile the source file
+    asmfile = do_compile(argv[i]);	// 编译源文件
 
     if (O_dolink || O_assemble) {
-      objfile = do_assemble(asmfile);	// Assemble it to object forma
+      objfile = do_assemble(asmfile);	// 汇编成目标文件
       if (objcnt == (MAXOBJ - 2)) {
-	fprintf(stderr, "Too many object files for the compiler to handle\n");
-	exit(1);
+        fprintf(stderr, "Too many object files for the compiler to handle\n");
+        exit(1);
       }
-      objlist[objcnt++] = objfile;	// Add the object file's name
-      objlist[objcnt] = NULL;	// to the list of object files
+      objlist[objcnt++] = objfile;	//  把目标文件名加入到目标文件列表
+      objlist[objcnt] = NULL;	
     }
 
-    if (!O_keepasm)		// Remove the assembly file if
-      unlink(asmfile);		// we don't need to keep it
+    if (!O_keepasm)		// 如果不需要汇编后的文件,删之
+      unlink(asmfile);		
     i++;
   }
 
-  // Now link all the object files together
+  // 链接所有目标文件
   if (O_dolink) {
     do_link(outfilename, objlist);
 
-    // If we don't need to keep the object
-    // files, then remove them
+    // 如果不需要目标文件,删之
     if (!O_assemble) {
       for (i = 0; objlist[i] != NULL; i++)
-	unlink(objlist[i]);
+        unlink(objlist[i]);
     }
   }
 
