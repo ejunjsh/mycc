@@ -29,67 +29,63 @@ static struct ASTnode *single_statement(void);
 //
 // if_head: 'if' '(' true_false_expression ')' statement  ;
 //
-// Parse an IF statement including any
-// optional ELSE clause and return its AST
+// 解析IF语句，包括可选的ELSE语句
+// 返回它的语法树
 static struct ASTnode *if_statement(void) {
   struct ASTnode *condAST, *trueAST, *falseAST = NULL;
 
-  // Ensure we have 'if' '('
+  // 确认有'if' '('
   match(T_IF, "if");
   lparen();
 
-  // Parse the following expression
-  // and the ')' following. Force a
-  // non-comparison to be boolean
-  // the tree's operation is a comparison.
+  // 解析接下来的表达式和')'
+  // 强制把一个不可比较的操作转成可比较（A_TOBOOL）
   condAST = binexpr(0);
   if (condAST->op < A_EQ || condAST->op > A_GE)
     condAST =
       mkastunary(A_TOBOOL, condAST->type, condAST->ctype, condAST, NULL, 0);
   rparen();
 
-  // Get the AST for the statement
+  // 获得true时候的语句
   trueAST = single_statement();
 
-  // If we have an 'else', skip it
-  // and get the AST for the statement
+  // 如果有'else'，跳过它，
+  // 继续获得false的语句
   if (Token.token == T_ELSE) {
     scan(&Token);
     falseAST = single_statement();
   }
 
-  // Build and return the AST for this statement
+  // 创建一个A_IF的语法树，并返回
   return (mkastnode(A_IF, P_NONE, NULL, condAST, trueAST, falseAST, NULL, 0));
 }
 
 
 // while_statement: 'while' '(' true_false_expression ')' statement  ;
 //
-// Parse a WHILE statement and return its AST
+// 解析WHILE语句并返回它的语法树
 static struct ASTnode *while_statement(void) {
   struct ASTnode *condAST, *bodyAST;
 
-  // Ensure we have 'while' '('
+  // 保证有'while' '('
   match(T_WHILE, "while");
   lparen();
 
-  // Parse the following expression
-  // and the ')' following. Force a
-  // non-comparison to be boolean
-  // the tree's operation is a comparison.
+  // 解析接下来的表达式和')'
+  // 强制把一个不可比较的操作转成可比较（A_TOBOOL）
   condAST = binexpr(0);
   if (condAST->op < A_EQ || condAST->op > A_GE)
     condAST =
       mkastunary(A_TOBOOL, condAST->type, condAST->ctype, condAST, NULL, 0);
   rparen();
 
-  // Get the AST for the statement.
-  // Update the loop depth in the process
+  // 获得循环体语法树
+  // 同时更新在这个过程中的循环深度
   Looplevel++;
   bodyAST = single_statement();
   Looplevel--;
 
-  // Build and return the AST for this statement
+  // 创建A_WHILE语法树并返回
   return (mkastnode(A_WHILE, P_NONE, NULL, condAST, NULL, bodyAST, NULL, 0));
 }
 
@@ -97,90 +93,89 @@ static struct ASTnode *while_statement(void) {
 //                          true_false_expression ';'
 //                          expression_list ')' statement  ;
 //
-// Parse a FOR statement and return its AST
+// 解析FOR语句并返回它的语法树
 static struct ASTnode *for_statement(void) {
   struct ASTnode *condAST, *bodyAST;
   struct ASTnode *preopAST, *postopAST;
   struct ASTnode *tree;
 
-  // Ensure we have 'for' '('
+  // 保证有'for' '('
   match(T_FOR, "for");
   lparen();
 
-  // Get the pre_op expression and the ';'
+  // 获取for循环第一个表达式，和后面的';'
   preopAST = expression_list(T_SEMI);
   semi();
 
-  // Get the condition and the ';'.
-  // Force a non-comparison to be boolean
-  // the tree's operation is a comparison.
+  // 获得条件表达式和';'
+  // 强制把一个不可比较的操作转成可比较（A_TOBOOL）
   condAST = binexpr(0);
   if (condAST->op < A_EQ || condAST->op > A_GE)
     condAST =
       mkastunary(A_TOBOOL, condAST->type, condAST->ctype, condAST, NULL, 0);
   semi();
 
-  // Get the post_op expression and the ')'
+  // 获得最后的表达式和')'
   postopAST = expression_list(T_RPAREN);
   rparen();
 
-  // Get the statement which is the body
-  // Update the loop depth in the process
+  // 获得循环体语法树
+  // 同时更新在这个过程中的循环深度
   Looplevel++;
   bodyAST = single_statement();
   Looplevel--;
 
-  // Glue the statement and the postop tree
+  // 把循环体语句和最后的表达式黏在一起
   tree = mkastnode(A_GLUE, P_NONE, NULL, bodyAST, NULL, postopAST, NULL, 0);
 
-  // Make a WHILE loop with the condition and this new body
+  // 然后跟条件表达式合成一个WHILE循环语句（这里就是强制把一个for循环变成一个while循环）
   tree = mkastnode(A_WHILE, P_NONE, NULL, condAST, NULL, tree, NULL, 0);
 
-  // And glue the preop tree to the A_WHILE tree
+  // 把第一个表达式跟WHILE循环黏在一起
   return (mkastnode(A_GLUE, P_NONE, NULL, preopAST, NULL, tree, NULL, 0));
 }
 
 // return_statement: 'return' '(' expression ')'  ;
 //
-// Parse a return statement and return its AST
+// 解析返回语句,并返回语法树
 static struct ASTnode *return_statement(void) {
   struct ASTnode *tree= NULL;
 
-  // Ensure we have 'return'
+  // 保证有个 'return'
   match(T_RETURN, "return");
 
-  // See if we have a return value
+  // 检查是否有返回值
   if (Token.token == T_LPAREN) {
-    // Can't return a value if function returns P_VOID
+    // 如果函数返回类型为P_VOID,报错
     if (Functionid->type == P_VOID)
       fatal("Can't return from a void function");
 
-    // Skip the left parenthesis
+    // 跳过左括号
     lparen();
 
-    // Parse the following expression
+    // 解析接下来的表达式
     tree = binexpr(0);
 
-    // Ensure this is compatible with the function's type
+    // 保证返回值跟函数返回类型是兼容的
     tree = modify_type(tree, Functionid->type, Functionid->ctype, 0);
     if (tree == NULL)
       fatal("Incompatible type to return");
 
-    // Get the ')'
+    // 保证有个')'
     rparen();
   }
 
-  // Add on the A_RETURN node
+  // 包装为A_RETURN节点
   tree = mkastunary(A_RETURN, P_NONE, NULL, tree, NULL, 0);
 
-  // Get the ';'
+  // 保证有';'
   semi();
   return (tree);
 }
 
 // break_statement: 'break' ;
 //
-// Parse a break statement and return its AST
+// 解析break语句并返回它的语法树
 static struct ASTnode *break_statement(void) {
 
   if (Looplevel == 0 && Switchlevel == 0)
@@ -192,7 +187,7 @@ static struct ASTnode *break_statement(void) {
 
 // continue_statement: 'continue' ;
 //
-// Parse a continue statement and return its AST
+// 解析continue语句并返回它的语法树
 static struct ASTnode *continue_statement(void) {
 
   if (Looplevel == 0)
@@ -202,7 +197,7 @@ static struct ASTnode *continue_statement(void) {
   return (mkastleaf(A_CONTINUE, P_NONE, NULL, NULL, 0));
 }
 
-// Parse a switch statement and return its AST
+// 解析switch语句并返回它的语法树
 static struct ASTnode *switch_statement(void) {
   struct ASTnode *left, *body, *n, *c;
   struct ASTnode *casetree = NULL, *casetail;
@@ -210,91 +205,87 @@ static struct ASTnode *switch_statement(void) {
   int seendefault = 0;
   int ASTop, casevalue;
 
-  // Skip the 'switch' and '('
+  // 跳过'switch'和'('
   scan(&Token);
   lparen();
 
-  // Get the switch expression, the ')' and the '{'
+  // 获得switch表达式, ')' 和 '{'
   left = binexpr(0);
   rparen();
   lbrace();
 
-  // Ensure that this is of int type
+  // 保证是个整型
   if (!inttype(left->type))
     fatal("Switch expression is not of integer type");
 
-  // Build an A_SWITCH subtree with the expression as
-  // the child
+  // 创建一个A_SWITCH节点,用上面的表达式作为孩子
   n = mkastunary(A_SWITCH, P_NONE, NULL, left, NULL, 0);
 
-  // Now parse the cases
+  // 解析case
   Switchlevel++;
   while (inloop) {
     switch (Token.token) {
-	// Leave the loop when we hit a '}'
+      // 当遇到'}'跳出循环
       case T_RBRACE:
-	if (casecount == 0)
-	  fatal("No cases in switch");
-	inloop = 0;
-	break;
+        if (casecount == 0)
+          fatal("No cases in switch");
+        inloop = 0;
+        break;
       case T_CASE:
       case T_DEFAULT:
-	// Ensure this isn't after a previous 'default'
-	if (seendefault)
-	  fatal("case or default after existing default");
+        // 保证不是在'default'后面
+        if (seendefault)
+          fatal("case or default after existing default");
 
-	// Set the AST operation. Scan the case value if required
-	if (Token.token == T_DEFAULT) {
-	  ASTop = A_DEFAULT;
-	  seendefault = 1;
-	  scan(&Token);
-	} else {
-	  ASTop = A_CASE;
-	  scan(&Token);
-	  left = binexpr(0);
+        // 设置语法树操作,如果需要,扫描case值
+        if (Token.token == T_DEFAULT) {
+          ASTop = A_DEFAULT;
+          seendefault = 1;
+          scan(&Token);
+        } else {
+          ASTop = A_CASE;
+          scan(&Token);
+          left = binexpr(0);
 
-	  // Ensure the case value is an integer literal
-	  if (left->op != A_INTLIT)
-	    fatal("Expecting integer literal for case value");
-	  casevalue = left->a_intvalue;
+          // 保证case的值是整型字面量
+          if (left->op != A_INTLIT)
+            fatal("Expecting integer literal for case value");
+          casevalue = left->a_intvalue;
 
-	  // Walk the list of existing case values to ensure
-	  // that there isn't a duplicate case value
-	  for (c = casetree; c != NULL; c = c->right)
-	    if (casevalue == c->a_intvalue)
-	      fatal("Duplicate case value");
-	}
+          // 检查有没有相同的case值
+          for (c = casetree; c != NULL; c = c->right)
+            if (casevalue == c->a_intvalue)
+              fatal("Duplicate case value");
+        }
 
-	// Scan the ':' and increment the casecount
-	match(T_COLON, ":");
-	casecount++;
+        // 匹配':' 和增加case数量
+        match(T_COLON, ":");
+        casecount++;
 
-	// If the next token is a T_CASE, the existing case will fall
-	// into the next case. Otherwise, parse the case body.
-	if (Token.token == T_CASE)
-	  body = NULL;
-	else
-	  body = compound_statement(1);
+        // 如果下个token是个T_CASE,代表当前的case将没有body,直接进入下个case
+        // 如果不是,解析body
+        if (Token.token == T_CASE)
+          body = NULL;
+        else
+          body = compound_statement(1);
 
-	// Build a sub-tree with any compound statement as the left child
-	// and link it in to the growing A_CASE tree
-	if (casetree == NULL) {
-	  casetree = casetail =
-	    mkastunary(ASTop, P_NONE, NULL, body, NULL, casevalue);
-	} else {
-	  casetail->right =
-	    mkastunary(ASTop, P_NONE, NULL, body, NULL, casevalue);
-	  casetail = casetail->right;
-	}
-	break;
+        // 创建一个子树,body作为它的孩子,然后把这个子树链接到casetree的尾部
+        if (casetree == NULL) {
+          casetree = casetail =
+            mkastunary(ASTop, P_NONE, NULL, body, NULL, casevalue);
+        } else {
+          casetail->right =
+            mkastunary(ASTop, P_NONE, NULL, body, NULL, casevalue);
+          casetail = casetail->right;
+        }
+        break;
       default:
-	fatals("Unexpected token in switch", Token.tokstr);
+        fatals("Unexpected token in switch", Token.tokstr);
     }
   }
   Switchlevel--;
 
-  // We have a sub-tree with the cases and any default. Put the
-  // case count into the A_SWITCH node and attach the case tree.
+  // 把casetree加入到A_SWITCH节点,同时也把case数设进去
   n->a_intvalue = casecount;
   n->right = casetree;
   rbrace();
@@ -302,7 +293,7 @@ static struct ASTnode *switch_statement(void) {
   return (n);
 }
 
-// Parse a single statement and return its AST.
+// 解析单一的语句并返回语法树
 static struct ASTnode *single_statement(void) {
   struct ASTnode *stmt;
   struct symtable *ctype;
@@ -310,25 +301,24 @@ static struct ASTnode *single_statement(void) {
 
   switch (Token.token) {
     case T_SEMI:
-      // An empty statement
+      // 空语句
       semi();
       break;
     case T_LBRACE:
-      // We have a '{', so this is a compound statement
+      // 有 '{', 所以这个是个组合语句
       lbrace();
       stmt = compound_statement(0);
       stmt->linenum= linenum;
       rbrace();
       return (stmt);
     case T_IDENT:
-      // We have to see if the identifier matches a typedef.
-      // If not, treat it as an expression.
-      // Otherwise, fall down to the parse_type() call.
+      // 如果标识符不是个typedef,当它为表达式处理
+      // 如果是,那就由下面的情况来处理
       if (findtypedef(Text) == NULL) {
-	stmt = binexpr(0);
+        stmt = binexpr(0);
         stmt->linenum= linenum;
-	semi();
-	return (stmt);
+        semi();
+        return (stmt);
       }
     case T_CHAR:
     case T_INT:
@@ -337,10 +327,10 @@ static struct ASTnode *single_statement(void) {
     case T_UNION:
     case T_ENUM:
     case T_TYPEDEF:
-      // The beginning of a variable declaration list.
+      // 变量声明
       declaration_list(&ctype, C_LOCAL, T_SEMI, T_EOF, &stmt);
       semi();
-      return (stmt);		// Any assignments from the declarations
+      return (stmt);		// 变量声明也可能有赋值
     case T_IF:
       stmt= if_statement(); stmt->linenum= linenum; return(stmt);
     case T_WHILE:
@@ -356,45 +346,41 @@ static struct ASTnode *single_statement(void) {
     case T_SWITCH:
       stmt= switch_statement(); stmt->linenum= linenum; return(stmt);
     default:
-      // For now, see if this is an expression.
-      // This catches assignment statements.
+      // 到这里,剩下的应该就是赋值的语句了
       stmt = binexpr(0);
       stmt->linenum= linenum;
       semi();
       return (stmt);
   }
-  return (NULL);		// Keep -Wall happy
+  return (NULL);		
 }
 
-// Parse a compound statement
-// and return its AST. If inswitch is true,
-// we look for a '}', 'case' or 'default' token
-// to end the parsing. Otherwise, look for
-// just a '}' to end the parsing.
+// 解析组合语句,并返回语法树
+// 如果inswitch为true,那以'}', 'case' 或者 'default' 为结束token
+// 否则就只是以'}'为结束token
 struct ASTnode *compound_statement(int inswitch) {
   struct ASTnode *left = NULL;
   struct ASTnode *tree;
 
   while (1) {
-    // Leave if we've hit the end token. We do this first to allow
-    // an empty compound statement
+    // 遇到结束token,
+    // 先判断结束token,来允许空的组合语句
     if (Token.token == T_RBRACE)
       return (left);
     if (inswitch && (Token.token == T_CASE || Token.token == T_DEFAULT))
       return (left);
 
-    // Parse a single statement
+    // 解析单一语句
     tree = single_statement();
 
-    // For each new tree, either save it in left
-    // if left is empty, or glue the left and the
-    // new tree together
+    // 对于每个新tree,如果left为空,就保存到left上
+    // 否则跟left粘在一起
     if (tree != NULL) {
       if (left == NULL)
-	left = tree;
+	      left = tree;
       else
-	left = mkastnode(A_GLUE, P_NONE, NULL, left, NULL, tree, NULL, 0);
+	      left = mkastnode(A_GLUE, P_NONE, NULL, left, NULL, tree, NULL, 0);
     }
   }
-  return (NULL);		// Keep -Wall happy
+  return (NULL);
 }
