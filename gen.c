@@ -12,48 +12,39 @@ int genlabel(void) {
 }
 
 static void update_line(struct ASTnode *n) {
-  // Output the line into the assembly if we've
-  // changed the line number in the AST node
+  // 如果我们在语法树节点上改变了行号, 输出行号到汇编
   if (n->linenum != 0 && Line != n->linenum) {
     Line = n->linenum;
     cglinenum(Line);
   }
 }
 
-// Generate the code for an IF statement
-// and an optional ELSE clause.
+// 为IF语句生成汇编代码,包括可选的ELSE语句
 static int genIF(struct ASTnode *n, int looptoplabel, int loopendlabel) {
   int Lfalse, Lend;
 
-  // Generate two labels: one for the
-  // false compound statement, and one
-  // for the end of the overall IF statement.
-  // When there is no ELSE clause, Lfalse _is_
-  // the ending label!
+  // 生成两个标签: 一个是给false时的组合语句,一个是整个IF的结束标签
+  // 当没有ELSE语句的情况,Lfalse相当于结束标签了
   Lfalse = genlabel();
   if (n->right)
     Lend = genlabel();
 
-  // Generate the condition code followed
-  // by a jump to the false label.
+  // 生成条件的汇编代码,传Lfalse作为参数是方便跳到Lfalse
   genAST(n->left, Lfalse, NOLABEL, NOLABEL, n->op);
   genfreeregs(NOREG);
 
-  // Generate the true compound statement
+  // 生成true时的组合语句的汇编
   genAST(n->mid, NOLABEL, looptoplabel, loopendlabel, n->op);
   genfreeregs(NOREG);
 
-  // If there is an optional ELSE clause,
-  // generate the jump to skip to the end
+  // 如果有ELSE, 生成跳转指令,跳到最后
   if (n->right)
     cgjump(Lend);
 
-  // Now the false label
+  // 生成false时的标签
   cglabel(Lfalse);
 
-  // Optional ELSE clause: generate the
-  // false compound statement and the
-  // end label
+  // 如果有ELSE,生成false时的组合语句的汇编和结束标签
   if (n->right) {
     genAST(n->right, NOLABEL, NOLABEL, loopendlabel, n->op);
     genfreeregs(NOREG);
@@ -63,63 +54,58 @@ static int genIF(struct ASTnode *n, int looptoplabel, int loopendlabel) {
   return (NOREG);
 }
 
-// Generate the code for a WHILE statement
+// 生成WHILE语句的汇编代码
 static int genWHILE(struct ASTnode *n) {
   int Lstart, Lend;
 
-  // Generate the start and end labels
-  // and output the start label
+  // 生成开始和结束标签
+  // 输出开始标签
   Lstart = genlabel();
   Lend = genlabel();
   cglabel(Lstart);
 
-  // Generate the condition code followed
-  // by a jump to the end label.
+  // 生成条件的汇编代码,传Lend作为参数是方便跳出循环
   genAST(n->left, Lend, Lstart, Lend, n->op);
   genfreeregs(NOREG);
 
-  // Generate the compound statement for the body
+  // 生成循环体的汇编
   genAST(n->right, NOLABEL, Lstart, Lend, n->op);
   genfreeregs(NOREG);
 
-  // Finally output the jump back to the condition,
-  // and the end label
+  // 最后输出跳回开始的指令和结束标签
   cgjump(Lstart);
   cglabel(Lend);
   return (NOREG);
 }
 
-// Generate the code for a SWITCH statement
+// 生成SWITCH语句的汇编
 static int genSWITCH(struct ASTnode *n) {
   int *caseval, *caselabel;
   int Ljumptop, Lend;
   int i, reg, defaultlabel = 0, casecount = 0;
   struct ASTnode *c;
 
-  // Create arrays for the case values and associated labels.
-  // Ensure that we have at least one position in each array.
+  // 分别创建case值和相关联的标签的数组
+  // 保证数组至少有一个元素
   caseval = (int *) malloc((n->a_intvalue + 1) * sizeof(int));
   caselabel = (int *) malloc((n->a_intvalue + 1) * sizeof(int));
 
-  // Generate labels for the top of the jump table, and the
-  // end of the switch statement. Set a default label for
-  // the end of the switch, in case we don't have a default.
+  // 生成跳表的标签和整个SWITCH语句的结束标签
+  // 设置默认标签为结束标签
   Ljumptop = genlabel();
   Lend = genlabel();
   defaultlabel = Lend;
 
-  // Output the code to calculate the switch condition
+  // 输出switch条件判断的汇编
   reg = genAST(n->left, NOLABEL, NOLABEL, NOLABEL, 0);
   cgjump(Ljumptop);
   genfreeregs(reg);
 
-  // Walk the right-child linked list to
-  // generate the code for each case
+  // 沿着右子树去生成每个case的汇编
   for (i = 0, c = n->right; c != NULL; i++, c = c->right) {
 
-    // Get a label for this case. Store it
-    // and the case value in the arrays.
-    // Record if it is the default case.
+    // 获得一个case的标签号,保存它和值到数组里
+    // 如果有default case,就存到defaultlabel
     caselabel[i] = genlabel();
     caseval[i] = c->a_intvalue;
     cglabel(caselabel[i]);
@@ -128,24 +114,23 @@ static int genSWITCH(struct ASTnode *n) {
     else
       casecount++;
 
-    // Generate the case code. Pass in the end label for the breaks.
-    // If case has no body, we will fall into the following body.
+    // 生成case body的汇编代码,传Lend是为了处理break的情况
+    // 如果case没有body,直接到下个case
     if (c->left)
       genAST(c->left, NOLABEL, NOLABEL, Lend, 0);
     genfreeregs(NOREG);
   }
 
-  // Ensure the last case jumps past the switch table
+  // 保证最后个case跳过switch表
   cgjump(Lend);
 
-  // Now output the switch table and the end label.
+  // 输出switch表和结束标签
   cgswitch(reg, casecount, Ljumptop, caselabel, caseval, defaultlabel);
   cglabel(Lend);
   return (NOREG);
 }
 
-// Generate the code for an
-// A_LOGAND or A_LOGOR operation
+// 为A_LOGAND 或 A_LOGOR操作生成汇编代码
 static int gen_logandor(struct ASTnode *n) {
   // Generate two labels
   int Lfalse = genlabel();
