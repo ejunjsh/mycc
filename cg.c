@@ -132,8 +132,8 @@ void cgfreeallregs(int keepreg) {
 // on it.
 static int spillreg = 0;
 
-// Allocate a free register. Return the number of
-// the register. Die if no available registers.
+// 分配一个空闲的寄存器,并返回这个寄存器号
+// 如果没有可用的话,就溢出一个寄存器到栈,然后返回这个寄存器
 int cgallocreg(void) {
   int reg;
 
@@ -145,7 +145,7 @@ int cgallocreg(void) {
     }
   }
 
-  // We have no registers, so we must spill one
+  // 没有可用寄存器,溢出一个
   reg = (spillreg % NUMFREEREGS);
   spillreg++;
   // fprintf(Outfile, "# spilling reg %s\n", reglist[reg]);
@@ -153,14 +153,13 @@ int cgallocreg(void) {
   return (reg);
 }
 
-// Return a register to the list of available registers.
-// Check to see if it's not already there.
+// 释放一个寄存器到可用列表中
 void cgfreereg(int reg) {
   if (freereg[reg] != 0) {
     // fprintf(Outfile, "# error trying to free register %s\n", reglist[reg]);
     fatald("Error trying to free register", reg);
   }
-  // If this was a spilled register, get it back
+  // 如果这个是溢出来的, 从栈中恢复
   if (spillreg > 0) {
     spillreg--;
     reg = (spillreg % NUMFREEREGS);
@@ -172,7 +171,7 @@ void cgfreereg(int reg) {
   }
 }
 
-// Spill all registers on the stack
+// 溢出所有寄存器到栈中
 void cgspillregs(void) {
   int i;
 
@@ -180,7 +179,7 @@ void cgspillregs(void) {
     pushreg(i);
 }
 
-// Unspill all registers from the stack
+// 从栈恢复所有寄存器
 static void cgunspillregs(void) {
   int i;
 
@@ -188,8 +187,7 @@ static void cgunspillregs(void) {
     popreg(i);
 }
 
-// Print out the assembly preamble
-// for one output file
+// 打印前置汇编到输出文件
 void cgpreamble(char *filename) {
   cgfreeallregs(NOREG);
   cgtextseg();
@@ -517,42 +515,37 @@ int cgboolean(int r, int op, int label) {
   return (r);
 }
 
-// Call a function with the given symbol id.
-// Pop off any arguments pushed on the stack.
-// Return the register with the result
+// 用给定的符号表来调用函数
+// 弹出之前传参时入栈的实参
+// 返回含有返回值的寄存器
 int cgcall(struct symtable *sym, int numargs) {
   int outr;
 
-  // Call the function
+  // 调用函数
   fprintf(Outfile, "\tcall\t%s@PLT\n", sym->name);
 
-  // Remove any arguments pushed on the stack
+  // 删除之前入栈的实参
   if (numargs > 6)
     fprintf(Outfile, "\taddq\t$%d, %%rsp\n", 8 * (numargs - 6));
 
-  // Unspill all the registers
+  // 恢复之前入栈的寄存器
   cgunspillregs();
 
-  // Get a new register and copy the return value into it
+  // 获取一个新的寄存器,拷贝返回值给他
   outr = cgallocreg();
   fprintf(Outfile, "\tmovq\t%%rax, %s\n", reglist[outr]);
   return (outr);
 }
 
-// Given a register with an argument value,
-// copy this argument into the argposn'th
-// parameter in preparation for a future function call.
-// Note that argposn is 1, 2, 3, 4, ..., never zero.
+// 把r的值考到位置为argposn的形参上,为以后函数调用做准备
+// argposn是从1开始,不是从0
 void cgcopyarg(int r, int argposn) {
 
-  // If this is above the sixth argument, simply push the
-  // register on the stack. We rely on being called with
-  // successive arguments in the correct order for x86-64
+  // 如果实参数量大于6个,那就把大于的都压入栈中
   if (argposn > 6) {
     fprintf(Outfile, "\tpushq\t%s\n", reglist[r]);
   } else {
-    // Otherwise, copy the value into one of the six registers
-    // used to hold parameter values
+    // 否则把实参值拷贝到指定的寄存器
     fprintf(Outfile, "\tmovq\t%s, %s\n", reglist[r],
 	    reglist[FIRSTPARAMREG - argposn + 1]);
   }

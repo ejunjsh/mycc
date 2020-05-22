@@ -132,24 +132,24 @@ static int genSWITCH(struct ASTnode *n) {
 
 // 为A_LOGAND 或 A_LOGOR操作生成汇编代码
 static int gen_logandor(struct ASTnode *n) {
-  // Generate two labels
+  // 生成两个标签
   int Lfalse = genlabel();
   int Lend = genlabel();
   int reg;
 
-  // Generate the code for the left expression
-  // followed by the jump to the false label
+  // 为左表达式生成代码, 如果表达式满足条件,则跳到false标签
+  // 例如 1&&1+1 这个表达式,由于左边为true,那就不用执行右边,直接跳转到Lfalse
   reg = genAST(n->left, NOLABEL, NOLABEL, NOLABEL, 0);
   cgboolean(reg, n->op, Lfalse);
   genfreeregs(NOREG);
 
-  // Generate the code for the right expression
-  // followed by the jump to the false label
+  // 为右表达式生成代码, 如果表达式满足条件,则跳到false标签
   reg = genAST(n->right, NOLABEL, NOLABEL, NOLABEL, 0);
   cgboolean(reg, n->op, Lfalse);
   genfreeregs(reg);
 
-  // We didn't jump so set the right boolean value
+  // 设置寄存器的值
+  // 这里很精彩,好好品品:)
   if (n->op == A_LOGAND) {
     cgloadboolean(reg, 1);
     cgjump(Lend);
@@ -165,38 +165,33 @@ static int gen_logandor(struct ASTnode *n) {
   return (reg);
 }
 
-// Generate the code to copy the arguments of a
-// function call to its parameters, then call the
-// function itself. Return the register that holds 
-// the function's return value.
+// 生成拷贝实参到形参的汇编代码,然后调用函数自己
+// 返回寄存器,它的值是函数的返回值
 static int gen_funccall(struct ASTnode *n) {
   struct ASTnode *gluetree = n->left;
   int reg;
   int numargs = 0;
 
-  // Save the registers before we copy the arguments
+  // 拷贝实参之前,先保存寄存器
   cgspillregs();
 
-  // If there is a list of arguments, walk this list
-  // from the last argument (right-hand child) to the
-  // first
+  // 如果有一列表实参,从最后一个开始遍历到第一个
   while (gluetree) {
-    // Calculate the expression's value
+    // 生成表达式,并返回表达式值的寄存器
     reg = genAST(gluetree->right, NOLABEL, NOLABEL, NOLABEL, gluetree->op);
-    // Copy this into the n'th function parameter: size is 1, 2, 3, ...
+    // 拷贝实参到形参
     cgcopyarg(reg, gluetree->a_size);
-    // Keep the first (highest) number of arguments
+    // 保留函数参数数量
     if (numargs == 0)
       numargs = gluetree->a_size;
     gluetree = gluetree->left;
   }
 
-  // Call the function, clean up the stack (based on numargs),
-  // and return its result
+  // 调用函数,清理栈(根据参数数量),并返回函数返回值
   return (cgcall(n->sym, numargs));
 }
 
-// Generate code for a ternary expression
+// 为三元表达式生成汇编代码
 static int gen_ternary(struct ASTnode *n) {
   int Lfalse, Lend;
   int reg, expreg;
