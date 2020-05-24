@@ -599,6 +599,7 @@ static struct symtable *composite_declaration(int type) {
   }
 
   // 设置复合类型的大小
+  // TODO：check this later
   ctype->size = offset;
   return (ctype);
 }

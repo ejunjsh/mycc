@@ -5,10 +5,10 @@
 // x86-64汇编生成器
 // Copyright (c) 2019 Warren Toomey, GPL3
 
-// Flag to say which section were are outputting in to
+// 标记我们正在输出的汇编在那个区域
 enum { no_seg, text_seg, data_seg } currSeg = no_seg;
 
-// Switch to the text segment
+// 切换到指令（text）区域
 void cgtextseg() {
   if (currSeg != text_seg) {
     fputs("\t.text\n", Outfile);
@@ -16,7 +16,7 @@ void cgtextseg() {
   }
 }
 
-// Switch to the data segment
+// 切换到数据（data）区域
 void cgdataseg() {
   if (currSeg != data_seg) {
     fputs("\t.data\n", Outfile);
@@ -24,8 +24,7 @@ void cgdataseg() {
   }
 }
 
-// Given a scalar type value, return the
-// size of the type in bytes.
+// 给定一个标量类型，返回该类型的字节大小
 int cgprimsize(int type) {
   if (ptrtype(type))
     return (8);
@@ -39,35 +38,30 @@ int cgprimsize(int type) {
   default:
     fatald("Bad type in cgprimsize:", type);
   }
-  return (0);			// Keep -Wall happy
+  return (0);	
 }
 
-// Given a scalar type, an existing memory offset
-// (which hasn't been allocated to anything yet)
-// and a direction (1 is up, -1 is down), calculate
-// and return a suitably aligned memory offset
-// for this scalar type. This could be the original
-// offset, or it could be above/below the original
+// 给定一个类型，一个内存位移（这个还没有分配过）
+// 和一个方向（1为上，-1为下），返回一个合适的对齐位移
+// 它有可能跟原来的位移一样，或者比原来少，或者多
 int cgalign(int type, int offset, int direction) {
   int alignment;
 
-  // We don't need to do this on x86-64, but let's
-  // align chars on any offset and align ints/pointers
-  // on a 4-byte alignment
+  // 虽然x86-64不要求对齐，但是也尝试下把
+  // 字符的不用对情，其他类型就按四字节对齐
   switch (type) {
   case P_CHAR:
     break;
   default:
-    // Align whatever we have now on a 4-byte alignment.
-    // I put the generic code here so it can be reused elsewhere.
+    // 四字节对齐
     alignment = 4;
     offset = (offset + direction * (alignment - 1)) & ~(alignment - 1);
   }
   return (offset);
 }
 
-// Position of next local variable relative to stack base pointer.
-// We store the offset as positive to make aligning the stack pointer easier
+// 下一个本地变量的相对于栈底的位置
+// 这个是个正数，这样可以方便对齐栈指针
 static int localOffset;
 
 // Position of stack pointer offset relative to stack base pointer.
