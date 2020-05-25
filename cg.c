@@ -546,13 +546,13 @@ void cgcopyarg(int r, int argposn) {
   cgfreereg(r);
 }
 
-// Shift a register left by a constant
+// 用常量左移一个寄存器
 int cgshlconst(int r, int val) {
   fprintf(Outfile, "\tsalq\t$%d, %s\n", val, reglist[r]);
   return (r);
 }
 
-// Store a register's value into a variable
+// 存储一个寄存器值到一个全局变量
 int cgstorglob(int r, struct symtable *sym) {
 
   if (cgprimsize(sym->type) == 8) {
@@ -571,7 +571,7 @@ int cgstorglob(int r, struct symtable *sym) {
   return (r);
 }
 
-// Store a register's value into a local variable
+// 存储一个寄存器值到一个本地变量
 int cgstorlocal(int r, struct symtable *sym) {
 
   if (cgprimsize(sym->type) == 8) {

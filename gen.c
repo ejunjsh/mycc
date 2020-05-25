@@ -196,30 +196,27 @@ static int gen_ternary(struct ASTnode *n) {
   int Lfalse, Lend;
   int reg, expreg;
 
-  // Generate two labels: one for the
-  // false expression, and one for the
-  // end of the overall expression
+  // 生成两个标签：一个是给false表达式，一个是给整个表达式
   Lfalse = genlabel();
   Lend = genlabel();
 
-  // Generate the condition code followed
-  // by a jump to the false label.
+  // 生成条件的汇编代码，并传递Lfalse作为参数
   genAST(n->left, Lfalse, NOLABEL, NOLABEL, n->op);
   // genfreeregs(NOREG);
 
-  // Get a register to hold the result of the two expressions
+  // 分配一个寄存器用来存储后面两个表达式的结果
   reg = cgallocreg();
 
-  // Generate the true expression and the false label.
-  // Move the expression result into the known register.
+  // 生成true表达式和false标签
+  // 把表达式的结果拷贝到上面那个已知的寄存器
   expreg = genAST(n->mid, NOLABEL, NOLABEL, NOLABEL, n->op);
   cgmove(expreg, reg);
   cgfreereg(expreg);
   cgjump(Lend);
   cglabel(Lfalse);
 
-  // Generate the false expression and the end label.
-  // Move the expression result into the known register.
+  // 生成false表达式和结束标签
+  // 把表达式的结果拷贝到上面那个已知的寄存器
   expreg = genAST(n->right, NOLABEL, NOLABEL, NOLABEL, n->op);
   cgmove(expreg, reg);
   cgfreereg(expreg);
@@ -227,22 +224,21 @@ static int gen_ternary(struct ASTnode *n) {
   return (reg);
 }
 
-// Given an AST, an optional label, and the AST op
-// of the parent, generate assembly code recursively.
-// Return the register id with the tree's final value.
+// 给定一个语法树，三个可选的标签，和一个父节点的操作
+// 递归生成汇编代码
+// 返回寄存器，寄存器里面有这棵树的最终值
 int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
 	   int loopendlabel, int parentASTop) {
   int leftreg = NOREG, rightreg = NOREG;
 
-  // Empty tree, do nothing
+  // 空树，什么都不做
   if (n == NULL)
     return (NOREG);
 
-  // Update the line number in the output
+  // 在输出中更新行号
   update_line(n);
 
-  // We have some specific AST node handling at the top
-  // so that we don't evaluate the child sub-trees immediately
+  // 上面我们定义了一些语法树节点处理的函数，所以，如果遇到某些操作，就直接扔给相关函数处理即可
   switch (n->op) {
   case A_IF:
     return (genIF(n, looptoplabel, loopendlabel));
@@ -259,8 +255,7 @@ int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
   case A_LOGAND:
     return (gen_logandor(n));
   case A_GLUE:
-    // Do each child statement, and free the
-    // registers after each child
+    // 执行每个子语句，然后释放所有寄存器
     if (n->left != NULL)
       genAST(n->left, iflabel, looptoplabel, loopendlabel, n->op);
     genfreeregs(NOREG);
@@ -269,17 +264,16 @@ int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
     genfreeregs(NOREG);
     return (NOREG);
   case A_FUNCTION:
-    // Generate the function's preamble before the code
-    // in the child sub-tree
+    // 生成函数的前置汇编，然会再到子树的汇编
     cgfuncpreamble(n->sym);
     genAST(n->left, NOLABEL, NOLABEL, NOLABEL, n->op);
     cgfuncpostamble(n->sym);
     return (NOREG);
   }
 
-  // General AST node handling below
+  // 下面是通用语法树处理
 
-  // Get the left and right sub-tree values
+  // 获得左树和右数的值
   if (n->left)
     leftreg = genAST(n->left, NOLABEL, NOLABEL, NOLABEL, n->op);
   if (n->right)
@@ -312,13 +306,10 @@ int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
   case A_GT:
   case A_LE:
   case A_GE:
-    // If the parent AST node is an A_IF, A_WHILE or A_TERNARY,
-    // generate a compare followed by a jump. Otherwise, compare
-    // registers and set one to 1 or 0 based on the comparison.
-    if (parentASTop == A_IF || parentASTop == A_WHILE ||
-	parentASTop == A_TERNARY)
-      return (cgcompare_and_jump
-	      (n->op, leftreg, rightreg, iflabel, n->left->type));
+    // 如果父节点是A_IF, A_WHILE 或者 A_TERNARY，
+    // 生成比较和跳转的代码，否则比较寄存器，然后根据比较结果设置其中一个寄存器的值为1或0
+    if (parentASTop == A_IF || parentASTop == A_WHILE || parentASTop == A_TERNARY)
+      return (cgcompare_and_jump(n->op, leftreg, rightreg, iflabel, n->left->type));
     else
       return (cgcompare_and_set(n->op, leftreg, rightreg, n->left->type));
   case A_INTLIT:
@@ -326,8 +317,7 @@ int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
   case A_STRLIT:
     return (cgloadglobstr(n->a_intvalue));
   case A_IDENT:
-    // Load our value if we are an rvalue
-    // or we are being dereferenced
+    // 如果是右值或者是解引用，则加载值
     if (n->rvalue || parentASTop == A_DEREF) {
       return (cgloadvar(n->sym, n->op));
     } else
@@ -339,9 +329,8 @@ int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
   case A_ASMOD:
   case A_ASSIGN:
 
-    // For the '+=' and friends operators, generate suitable code
-    // and get the register with the result. Then take the left child,
-    // make it the right child so that we can fall into the assignment code.
+    // 对于'+='和相关操作，生成合适的汇编代码，同时获取结果寄存器
+    // 然后令右节点等于左节点，这样就变成赋值操作了
     switch (n->op) {
     case A_ASPLUS:
       leftreg = cgadd(leftreg, rightreg);
@@ -365,45 +354,41 @@ int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
       break;
     }
 
-    // Now into the assignment code
-    // Are we assigning to an identifier or through a pointer?
+    // 赋值代码
     switch (n->right->op) {
     case A_IDENT:
       if (n->right->sym->class == C_GLOBAL ||
-	  n->right->sym->class == C_EXTERN ||
-	  n->right->sym->class == C_STATIC)
-	return (cgstorglob(leftreg, n->right->sym));
+        n->right->sym->class == C_EXTERN ||
+        n->right->sym->class == C_STATIC)
+	      return (cgstorglob(leftreg, n->right->sym));
       else
-	return (cgstorlocal(leftreg, n->right->sym));
+	      return (cgstorlocal(leftreg, n->right->sym));
     case A_DEREF:
       return (cgstorderef(leftreg, rightreg, n->right->type));
     default:
       fatald("Can't A_ASSIGN in genAST(), op", n->op);
     }
   case A_WIDEN:
-    // Widen the child's type to the parent's type
+    // 加宽子节点的类型到父节点的类型
     return (cgwiden(leftreg, n->left->type, n->type));
   case A_RETURN:
     cgreturn(leftreg, Functionid);
     return (NOREG);
   case A_ADDR:
-    // If we have a symbol, get its address. Otherwise,
-    // the left register already has the address because
-    // it's a member access
+    // 如果有符号，直接获取它的地址，否则左寄存器已经有地址，因为这是个成员访问
     if (n->sym != NULL)
       return (cgaddress(n->sym));
     else
       return (leftreg);
   case A_DEREF:
-    // If we are an rvalue, dereference to get the value we point at,
-    // otherwise leave it for A_ASSIGN to store through the pointer
+    // 如果是右值，解引用来获得值
+    // 否则直接返回，留给A_ASSIGN来处理
     if (n->rvalue)
       return (cgderef(leftreg, n->left->type));
     else
       return (leftreg);
   case A_SCALE:
-    // Small optimisation: use shift if the
-    // scale value is a known power of two
+    // 小优化：如果大小是2的幂次方，就使用位移来处理
     switch (n->a_size) {
     case 2:
       return (cgshlconst(leftreg, 1));
@@ -412,20 +397,19 @@ int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
     case 8:
       return (cgshlconst(leftreg, 3));
     default:
-      // Load a register with the size and
-      // multiply the leftreg by this size
+      // 加载大小到寄存器，然后用左寄存器相乘
       rightreg = cgloadint(n->a_size, P_INT);
       return (cgmul(leftreg, rightreg));
     }
   case A_POSTINC:
   case A_POSTDEC:
-    // Load and decrement the variable's value into a register
-    // and post increment/decrement it
+    // 例如：i++
+    // 先返回i，再++
     return (cgloadvar(n->sym, n->op));
   case A_PREINC:
   case A_PREDEC:
-    // Load and decrement the variable's value into a register
-    // and pre increment/decrement it
+    // 例如：++i
+    // 先++，再返回i
     return (cgloadvar(n->left->sym, n->op));
   case A_NEGATE:
     return (cgnegate(leftreg));
@@ -434,9 +418,8 @@ int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
   case A_LOGNOT:
     return (cglognot(leftreg));
   case A_TOBOOL:
-    // If the parent AST node is an A_IF or A_WHILE, generate
-    // a compare followed by a jump. Otherwise, set the register
-    // to 0 or 1 based on it's zeroeness or non-zeroeness
+    // 如果父节点是A_IF, A_WHILE，
+    // 生成比较和跳转的代码，否则根据是零还是非零来设置寄存器的值为0或1
     return (cgboolean(leftreg, parentASTop, iflabel));
   case A_BREAK:
     cgjump(loopendlabel);
@@ -445,11 +428,11 @@ int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
     cgjump(looptoplabel);
     return (NOREG);
   case A_CAST:
-    return (leftreg);		// Not much to do
+    return (leftreg);		// 什么都不用做
   default:
     fatald("Unknown AST operator", n->op);
   }
-  return (NOREG);		// Keep -Wall happy
+  return (NOREG);	
 }
 
 void genpreamble(char *filename) {
@@ -465,9 +448,7 @@ void genglobsym(struct symtable *node) {
   cgglobsym(node);
 }
 
-// Generate a global string.
-// If append is true, append to
-// previous genglobstr() call.
+// 生成一个全局字符串，如果append为true，就加到之前这个函数调用生成的全局字符串之后
 int genglobstr(char *strvalue, int append) {
   int l = genlabel();
   cgglobstr(l, strvalue, append);
