@@ -64,31 +64,29 @@ int cgalign(int type, int offset, int direction) {
 // 这个是个正数，这样可以方便对齐栈指针
 static int localOffset;
 
-// Position of stack pointer offset relative to stack base pointer.
-// We need this to ensure it is aligned on a 16-byte boundary.
+// 相对于栈低的栈指针位移
+// 用这个来保证16字节对齐 
 static int stackOffset;
 
-// Create the position of a new local variable.
+// 为一个新的本地变量在栈中开辟一个位置
 static int newlocaloffset(int size) {
-  // Decrement the offset by a minimum of 4 bytes
-  // and allocate on the stack
+  // 减去一个至少为4字节的位移来在栈中分配空间
   localOffset += (size > 4) ? size : 4;
   return (-localOffset);
 }
 
-// List of available registers and their names.
-// We need a list of byte and doubleword registers, too.
-// The list also includes the registers used to
-// hold function parameters
+// 所有可用寄存器列表
+// 这个列表还包含字节和双字寄存器
+// 这个列表还包括用在函数参数的寄存器
 #define NUMFREEREGS 4
-#define FIRSTPARAMREG 9		// Position of first parameter register
+#define FIRSTPARAMREG 9		// 第一个参数寄存器的位置
 static int freereg[NUMFREEREGS];
 static char *reglist[] =
   { "%r10", "%r11", "%r12", "%r13", "%r9", "%r8", "%rcx", "%rdx", "%rsi",
   "%rdi"
 };
 
-// We also need the 8-bit and 32-bit register names
+// 8位和32位寄存器
 static char *breglist[] =
   { "%r10b", "%r11b", "%r12b", "%r13b", "%r9b", "%r8b", "%cl", "%dl", "%sil",
   "%dil"
@@ -99,18 +97,18 @@ static char *dreglist[] =
   "%esi", "%edi"
 };
 
-// Push and pop a register on/off the stack
+// 压入一个寄存器到栈
 static void pushreg(int r) {
   fprintf(Outfile, "\tpushq\t%s\n", reglist[r]);
 }
 
+// 从栈中弹出到寄存器
 static void popreg(int r) {
   fprintf(Outfile, "\tpopq\t%s\n", reglist[r]);
 }
 
 
-// Set all registers as available.
-// But if reg is positive, don't free that one.
+// 释放所有寄存器，除了参数那个，如果参数是-1，则释放所有
 void cgfreeallregs(int keepreg) {
   int i;
   // fprintf(Outfile, "# freeing all registers\n");
@@ -119,11 +117,8 @@ void cgfreeallregs(int keepreg) {
       freereg[i] = 1;
 }
 
-// When we need to spill a register, we choose
-// the following register and then cycle through
-// the remaining registers. The spillreg increments
-// continually, so we need to take a modulo NUMFREEREGS
-// on it.
+// 当需要溢出一个寄存器，我们选择这个变量指定的寄存器溢出，然后下次继续循环取剩下的寄存器溢出
+// spillreg是一直递增的，所以需要取模
 static int spillreg = 0;
 
 // 分配一个空闲的寄存器,并返回这个寄存器号
@@ -216,29 +211,29 @@ void cgpreamble(char *filename) {
 	  "        popq    %%rsi\n" "        jmp     *%%rax\n\n");
 }
 
-// Nothing to do for the end of a file
+// 对于后缀汇编，没有什么要做的
 void cgpostamble() {
 }
 
-// Print out a function preamble
+// 生成函数的前缀汇编
 void cgfuncpreamble(struct symtable *sym) {
   char *name = sym->name;
   struct symtable *parm, *locvar;
   int cnt;
-  int paramOffset = 16;		// Any pushed params start at this stack offset
-  int paramReg = FIRSTPARAMREG;	// Index to the first param register in above reg lists
+  int paramOffset = 16;		// 超过6个的那部分参数所在栈的开始位置
+  int paramReg = FIRSTPARAMREG;	// 上面参数寄存器列表的索引
 
-  // Output in the text segment, reset local offset
+  // 输出text段，重设本地变量位移
   cgtextseg();
   localOffset = 0;
 
-  // Output the function start, save the %rsp and %rsp
+  // 输出函数开始标签，保存%rbp 和 %rsp
   if (sym->class == C_GLOBAL)
     fprintf(Outfile, "\t.globl\t%s\n" "\t.type\t%s, @function\n", name, name);
   fprintf(Outfile, "%s:\n" "\tpushq\t%%rbp\n" "\tmovq\t%%rsp, %%rbp\n", name);
 
-  // Copy any in-register parameters to the stack, up to six of them
-  // The remaining parameters are already on the stack
+  // 拷贝在寄存器里面的参数到栈
+  // 如果大于6个参数都已经在栈了
   for (parm = sym->member, cnt = 1; parm != NULL; parm = parm->next, cnt++) {
     if (cnt > 6) {
       parm->st_posn = paramOffset;
@@ -249,19 +244,17 @@ void cgfuncpreamble(struct symtable *sym) {
     }
   }
 
-  // For the remainder, if they are a parameter then they are
-  // already on the stack. If only a local, make a stack position.
+  // 计算本地变量的栈位置
   for (locvar = Loclhead; locvar != NULL; locvar = locvar->next) {
     locvar->st_posn = newlocaloffset(locvar->size);
   }
 
-  // Align the stack pointer to be a multiple of 16
-  // less than its previous value
+  // 对齐栈指针到16的倍数
   stackOffset = (localOffset + 15) & ~15;
   fprintf(Outfile, "\taddq\t$%d,%%rsp\n", -stackOffset);
 }
 
-// Print out a function postamble
+// 生成函数后缀汇编
 void cgfuncpostamble(struct symtable *sym) {
   cglabel(sym->st_endlabel);
   fprintf(Outfile, "\taddq\t$%d,%%rsp\n", stackOffset);
@@ -269,46 +262,44 @@ void cgfuncpostamble(struct symtable *sym) {
   cgfreeallregs(NOREG);
 }
 
-// Load an integer literal value into a register.
-// Return the number of the register.
-// For x86-64, we don't need to worry about the type.
+// 加载一个整型字面量到一个寄存器
+// 返回当前寄存器
+// 对于x86-64，不用担心类型
 int cgloadint(int value, int type) {
-  // Get a new register
+  // 分配一个新的寄存器
   int r = cgallocreg();
 
   fprintf(Outfile, "\tmovq\t$%d, %s\n", value, reglist[r]);
   return (r);
 }
 
-// Load a value from a variable into a register.
-// Return the number of the register. If the
-// operation is pre- or post-increment/decrement,
-// also perform this action.
+// 从一个变量加载值到寄存器
+// 返回当前寄存器
+// 如果有i++或++i这些操作，也是在这个函数里面处理
 int cgloadvar(struct symtable *sym, int op) {
   int r, postreg, offset = 1;
 
-  // Get a new register
+  // 分配一个新的寄存器
   r = cgallocreg();
 
-  // If the symbol is a pointer, use the size
-  // of the type that it points to as any
-  // increment or decrement. If not, it's one.
+  // 如果是指针，用指针指向的类型大小作为++或--的大小
+  // 如果不是，那大小就是1
   if (ptrtype(sym->type))
     offset = typesize(value_at(sym->type), sym->ctype);
 
-  // Negate the offset for decrements
+  // 如果是--，就把它变成负数
   if (op == A_PREDEC || op == A_POSTDEC)
     offset = -offset;
 
-  // If we have a pre-operation
+  // 如果是++i
   if (op == A_PREINC || op == A_PREDEC) {
-    // Load the symbol's address
+    // 获取变量地址
     if (sym->class == C_LOCAL || sym->class == C_PARAM)
       fprintf(Outfile, "\tleaq\t%d(%%rbp), %s\n", sym->st_posn, reglist[r]);
     else
       fprintf(Outfile, "\tleaq\t%s(%%rip), %s\n", sym->name, reglist[r]);
 
-    // and change the value at that address
+    // 改变那个地址里面的值
     switch (sym->size) {
     case 1:
       fprintf(Outfile, "\taddb\t$%d,(%s)\n", offset, reglist[r]);
@@ -322,7 +313,7 @@ int cgloadvar(struct symtable *sym, int op) {
     }
   }
 
-  // Now load the output register with the value
+  // 加载变量值到寄存器
   if (sym->class == C_LOCAL || sym->class == C_PARAM) {
     switch (sym->size) {
     case 1:
@@ -347,11 +338,11 @@ int cgloadvar(struct symtable *sym, int op) {
     }
   }
 
-  // If we have a post-operation, get a new register
+  // 如果是i++
   if (op == A_POSTINC || op == A_POSTDEC) {
-    postreg = cgallocreg();
+    postreg = cgallocreg(); // 分配一个新寄存器
 
-    // Load the symbol's address
+    // 获取变量地址
     if (sym->class == C_LOCAL || sym->class == C_PARAM)
       fprintf(Outfile, "\tleaq\t%d(%%rbp), %s\n", sym->st_posn,
 	      reglist[postreg]);
@@ -359,7 +350,7 @@ int cgloadvar(struct symtable *sym, int op) {
       fprintf(Outfile, "\tleaq\t%s(%%rip), %s\n", sym->name,
 	      reglist[postreg]);
 
-    // and change the value at that address
+    // 改变那个地址里面的值
     switch (sym->size) {
     case 1:
       fprintf(Outfile, "\taddb\t$%d,(%s)\n", offset, reglist[postreg]);
@@ -372,49 +363,44 @@ int cgloadvar(struct symtable *sym, int op) {
       break;
     }
 
-    // Finally, free the register
+    // 最后释放这个寄存器
     cgfreereg(postreg);
   }
 
-  // Return the register with the value
+  // 返回带有值的寄存器
   return (r);
 }
 
-// Given the label number of a global string,
-// load its address into a new register
+// 给定一个全局字符串的标签号，加载它的地址到一个新的寄存器
 int cgloadglobstr(int label) {
-  // Get a new register
+  // 分配一个新的寄存器
   int r = cgallocreg();
   fprintf(Outfile, "\tleaq\tL%d(%%rip), %s\n", label, reglist[r]);
   return (r);
 }
 
-// Add two registers together and return
-// the number of the register with the result
+// 相加两个寄存器，并返回装有结果的那个寄存器
 int cgadd(int r1, int r2) {
   fprintf(Outfile, "\taddq\t%s, %s\n", reglist[r2], reglist[r1]);
   cgfreereg(r2);
   return (r1);
 }
 
-// Subtract the second register from the first and
-// return the number of the register with the result
+// 从r1中减去r2,并返回装有结果的那个寄存器
 int cgsub(int r1, int r2) {
   fprintf(Outfile, "\tsubq\t%s, %s\n", reglist[r2], reglist[r1]);
   cgfreereg(r2);
   return (r1);
 }
 
-// Multiply two registers together and return
-// the number of the register with the result
+// 相乘两个寄存器，并返回装有结果的那个寄存器
 int cgmul(int r1, int r2) {
   fprintf(Outfile, "\timulq\t%s, %s\n", reglist[r2], reglist[r1]);
   cgfreereg(r2);
   return (r1);
 }
 
-// Divide or modulo the first register by the second and
-// return the number of the register with the result
+// 相除或取余两个寄存器，并返回装有结果的那个寄存器
 int cgdivmod(int r1, int r2, int op) {
   fprintf(Outfile, "\tmovq\t%s,%%rax\n", reglist[r1]);
   fprintf(Outfile, "\tcqo\n");
@@ -427,28 +413,28 @@ int cgdivmod(int r1, int r2, int op) {
   return (r1);
 }
 
-// Bitwise AND two registers
+// 与
 int cgand(int r1, int r2) {
   fprintf(Outfile, "\tandq\t%s, %s\n", reglist[r2], reglist[r1]);
   cgfreereg(r2);
   return (r1);
 }
 
-// Bitwise OR two registers
+// 或
 int cgor(int r1, int r2) {
   fprintf(Outfile, "\torq\t%s, %s\n", reglist[r2], reglist[r1]);
   cgfreereg(r2);
   return (r1);
 }
 
-// Bitwise XOR two registers
+// 异或
 int cgxor(int r1, int r2) {
   fprintf(Outfile, "\txorq\t%s, %s\n", reglist[r2], reglist[r1]);
   cgfreereg(r2);
   return (r1);
 }
 
-// Shift left r1 by r2 bits
+// 左移r1 r2位
 int cgshl(int r1, int r2) {
   fprintf(Outfile, "\tmovb\t%s, %%cl\n", breglist[r2]);
   fprintf(Outfile, "\tshlq\t%%cl, %s\n", reglist[r1]);
@@ -456,7 +442,7 @@ int cgshl(int r1, int r2) {
   return (r1);
 }
 
-// Shift right r1 by r2 bits
+// 右移r1 r2位
 int cgshr(int r1, int r2) {
   fprintf(Outfile, "\tmovb\t%s, %%cl\n", breglist[r2]);
   fprintf(Outfile, "\tshrq\t%%cl, %s\n", reglist[r1]);
@@ -464,19 +450,19 @@ int cgshr(int r1, int r2) {
   return (r1);
 }
 
-// Negate a register's value
+// 变成负数
 int cgnegate(int r) {
   fprintf(Outfile, "\tnegq\t%s\n", reglist[r]);
   return (r);
 }
 
-// Invert a register's value
+// 按位取反一个寄存器的值
 int cginvert(int r) {
   fprintf(Outfile, "\tnotq\t%s\n", reglist[r]);
   return (r);
 }
 
-// Logically negate a register's value
+// 逻辑取反一个寄存器的值
 int cglognot(int r) {
   fprintf(Outfile, "\ttest\t%s, %s\n", reglist[r], reglist[r]);
   fprintf(Outfile, "\tsete\t%s\n", breglist[r]);
@@ -854,14 +840,14 @@ void cgswitch(int reg, int casecount, int toplabel,
     fprintf(Outfile, "\t.quad\t%d, L%d\n", caseval[i], caselabel[i]);
   fprintf(Outfile, "\t.quad\tL%d\n", defaultlabel);
 
-  // Load the specific registers
+  // 加载指定寄存器
   cglabel(toplabel);
   fprintf(Outfile, "\tmovq\t%s, %%rax\n", reglist[reg]);
   fprintf(Outfile, "\tleaq\tL%d(%%rip), %%rdx\n", label);
   fprintf(Outfile, "\tjmp\t__switch\n");
 }
 
-// Move value between registers
+// r1的值移动到r2
 void cgmove(int r1, int r2) {
   fprintf(Outfile, "\tmovq\t%s, %s\n", reglist[r1], reglist[r2]);
 }
