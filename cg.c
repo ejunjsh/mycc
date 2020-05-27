@@ -576,7 +576,7 @@ int cgstorlocal(int r, struct symtable *sym) {
   return (r);
 }
 
-// Generate a global symbol but not functions
+// 生成全局符号，除了函数
 void cgglobsym(struct symtable *node) {
   int size, type;
   int initvalue;
@@ -587,8 +587,8 @@ void cgglobsym(struct symtable *node) {
   if (node->stype == S_FUNCTION)
     return;
 
-  // Get the size of the variable (or its elements if an array)
-  // and the type of the variable
+  // 获取变量（数组元素）的大小
+  // 和变量的类型
   if (node->stype == S_ARRAY) {
     size = typesize(value_at(node->type), node->ctype);
     type = value_at(node->type);
@@ -597,21 +597,21 @@ void cgglobsym(struct symtable *node) {
     type = node->type;
   }
 
-  // Generate the global identity and the label
+  // 生成全局标识和标签
   cgdataseg();
   if (node->class == C_GLOBAL)
     fprintf(Outfile, "\t.globl\t%s\n", node->name);
   fprintf(Outfile, "%s:\n", node->name);
 
-  // Output space for one or more elements
+  // 输出一个或者更多元素的空间
   for (i = 0; i < node->nelems; i++) {
 
-    // Get any initial value
+    // 初始值
     initvalue = 0;
     if (node->initlist != NULL)
       initvalue = node->initlist[i];
 
-    // Generate the space for this type
+    // 生成这个类型的空间
     switch (size) {
     case 1:
       fprintf(Outfile, "\t.byte\t%d\n", initvalue);
@@ -620,23 +620,21 @@ void cgglobsym(struct symtable *node) {
       fprintf(Outfile, "\t.long\t%d\n", initvalue);
       break;
     case 8:
-      // Generate the pointer to a string literal. Treat a zero value
-      // as actually zero, not the label L0
-      if (node->initlist != NULL && type == pointer_to(P_CHAR)
-	  && initvalue != 0)
-	fprintf(Outfile, "\t.quad\tL%d\n", initvalue);
+      // 生成指向字符串字面量的指针，对于0值，就是真的0，而不是标签L0
+      if (node->initlist != NULL && type == pointer_to(P_CHAR) && initvalue != 0)
+	      fprintf(Outfile, "\t.quad\tL%d\n", initvalue);
       else
-	fprintf(Outfile, "\t.quad\t%d\n", initvalue);
+      	fprintf(Outfile, "\t.quad\t%d\n", initvalue);
       break;
     default:
       for (i = 0; i < size; i++)
-	fprintf(Outfile, "\t.byte\t0\n");
+	      fprintf(Outfile, "\t.byte\t0\n");
     }
   }
 }
 
-// Generate a global string and its start label.
-// Don't output the label if append is true.
+// 生成一个全局字符串和它的开始标签
+// 如果append是true，则不要输出标签
 void cgglobstr(int l, char *strvalue, int append) {
   char *cptr;
   if (!append)
@@ -646,22 +644,22 @@ void cgglobstr(int l, char *strvalue, int append) {
   }
 }
 
-// NUL terminate a global string
+// 结束一个全局字符串，就是加一个0在后面
 void cgglobstrend(void) {
   fprintf(Outfile, "\t.byte\t0\n");
 }
 
-// List of comparison instructions,
-// in AST order: A_EQ, A_NE, A_LT, A_GT, A_LE, A_GE
+// 一堆比较指令
+// 顺序跟A_EQ, A_NE, A_LT, A_GT, A_LE, A_GE 一致
 static char *cmplist[] =
   { "sete", "setne", "setl", "setg", "setle", "setge" };
 
-// Compare two registers and set if true.
+// 比较两个寄存器
 int cgcompare_and_set(int ASTop, int r1, int r2, int type) {
   int size = cgprimsize(type);
 
 
-  // Check the range of the AST operation
+  // 检查语法树操作的范围
   if (ASTop < A_EQ || ASTop > A_GE)
     fatal("Bad ASTop in cgcompare_and_set()");
 
@@ -682,25 +680,25 @@ int cgcompare_and_set(int ASTop, int r1, int r2, int type) {
   return (r2);
 }
 
-// Generate a label
+// 生成一个标签（这个就是直接打印汇编代码了）
 void cglabel(int l) {
   fprintf(Outfile, "L%d:\n", l);
 }
 
-// Generate a jump to a label
+// 生成一个jmp汇编指令
 void cgjump(int l) {
   fprintf(Outfile, "\tjmp\tL%d\n", l);
 }
 
-// List of inverted jump instructions,
-// in AST order: A_EQ, A_NE, A_LT, A_GT, A_LE, A_GE
+// 一堆反跳转指令
+// 顺序跟 A_EQ, A_NE, A_LT, A_GT, A_LE, A_GE 一致
 static char *invcmplist[] = { "jne", "je", "jge", "jle", "jg", "jl" };
 
-// Compare two registers and jump if false.
+// 比较两个寄存器，如果结果是false就跳转
 int cgcompare_and_jump(int ASTop, int r1, int r2, int label, int type) {
   int size = cgprimsize(type);
 
-  // Check the range of the AST operation
+  // 检查语法树操作范围
   if (ASTop < A_EQ || ASTop > A_GE)
     fatal("Bad ASTop in cgcompare_and_set()");
 
@@ -721,37 +719,34 @@ int cgcompare_and_jump(int ASTop, int r1, int r2, int label, int type) {
   return (NOREG);
 }
 
-// Widen the value in the register from the old
-// to the new type, and return a register with
-// this new value
+// 从旧的类型去加宽寄存器里面的值来适应新的类型，返回一个新值的寄存器
 int cgwiden(int r, int oldtype, int newtype) {
-  // Nothing to do
+  // 什么都不需要做
   return (r);
 }
 
-// Generate code to return a value from a function
+// 生成函数返回一个值的汇编代码
 void cgreturn(int reg, struct symtable *sym) {
 
-  // Only return a value if we have a value to return
+  // 处理有返回值的
   if (reg != NOREG) {
-    // Deal with pointers here as we can't put them in
-    // the switch statement
+    // 处理指针，不能把它放在下面的switch语句里面一起处理
     if (ptrtype(sym->type))
       fprintf(Outfile, "\tmovq\t%s, %%rax\n", reglist[reg]);
     else {
-      // Generate code depending on the function's type
+      // 根据函数类型生成相应汇编代码
       switch (sym->type) {
       case P_CHAR:
-	fprintf(Outfile, "\tmovzbl\t%s, %%eax\n", breglist[reg]);
-	break;
+        fprintf(Outfile, "\tmovzbl\t%s, %%eax\n", breglist[reg]);
+        break;
       case P_INT:
-	fprintf(Outfile, "\tmovl\t%s, %%eax\n", dreglist[reg]);
-	break;
+        fprintf(Outfile, "\tmovl\t%s, %%eax\n", dreglist[reg]);
+        break;
       case P_LONG:
-	fprintf(Outfile, "\tmovq\t%s, %%rax\n", reglist[reg]);
-	break;
+        fprintf(Outfile, "\tmovq\t%s, %%rax\n", reglist[reg]);
+        break;
       default:
-	fatald("Bad function type in cgreturn:", sym->type);
+	      fatald("Bad function type in cgreturn:", sym->type);
       }
     }
   }
@@ -759,8 +754,7 @@ void cgreturn(int reg, struct symtable *sym) {
   cgjump(sym->st_endlabel);
 }
 
-// Generate code to load the address of an
-// identifier into a variable. Return a new register
+// 生成代码来加载一个标识符的地址到一个变量，返回装有这个地址的寄存器
 int cgaddress(struct symtable *sym) {
   int r = cgallocreg();
 
@@ -772,12 +766,11 @@ int cgaddress(struct symtable *sym) {
   return (r);
 }
 
-// Dereference a pointer to get the value
-// it points at into the same register
+// 解引用一个指针来获得值，放进同一个寄存器
 int cgderef(int r, int type) {
-  // Get the type that we are pointing to
+  // 获得指针指向的类型
   int newtype = value_at(type);
-  // Now get the size of this type
+  // 获得类型大小
   int size = cgprimsize(newtype);
 
   switch (size) {
@@ -796,9 +789,9 @@ int cgderef(int r, int type) {
   return (r);
 }
 
-// Store through a dereferenced pointer
+// 通过解引用来存数据
 int cgstorderef(int r1, int r2, int type) {
-  // Get the size of the type
+  // 获得类型大小
   int size = cgprimsize(type);
 
   switch (size) {
@@ -817,24 +810,22 @@ int cgstorderef(int r1, int r2, int type) {
   return (r1);
 }
 
-// Generate a switch jump table and the code to
-// load the registers and call the switch() code
+// 生成一个switch跳表和代码去加载寄存器，还有跳到__switch代码
 void cgswitch(int reg, int casecount, int toplabel,
 	      int *caselabel, int *caseval, int defaultlabel) {
   int i, label;
 
-  // Get a label for the switch table
+  // 为switch表，获得和生成一个标签
   label = genlabel();
   cglabel(label);
 
-  // Heuristic. If we have no cases, create one case
-  // which points to the default case
+  // 如果没有case，就创建一个case指向默认case
   if (casecount == 0) {
     caseval[0] = 0;
     caselabel[0] = defaultlabel;
     casecount = 1;
   }
-  // Generate the switch jump table.
+  // 生成switch跳表
   fprintf(Outfile, "\t.quad\t%d\n", casecount);
   for (i = 0; i < casecount; i++)
     fprintf(Outfile, "\t.quad\t%d, L%d\n", caseval[i], caselabel[i]);
@@ -852,9 +843,7 @@ void cgmove(int r1, int r2) {
   fprintf(Outfile, "\tmovq\t%s, %s\n", reglist[r1], reglist[r2]);
 }
 
-// Output a gdb directive to say on which
-// source code line number the following
-// assembly code came from
+// 输出gdb指令来方便debug，知道当前的汇编是来自于源码的哪一行
 void cglinenum(int line) {
   // fprintf(Outfile, "\t.loc 1 %d 0\n", line);
 }
