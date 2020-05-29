@@ -1,5 +1,5 @@
-# Define the location of the include directory
-# and the location to install the compiler binary
+# 定义预处理查找的目录
+# 定义编译器的安装目录
 INCDIR=/tmp/include
 BINDIR=/tmp
 
@@ -26,17 +26,16 @@ clean:
 test: install tests/runtests
 	(cd tests; chmod +x runtests; ./runtests)
 
-# Run the tests with the
-# compiler that compiled itself
+# 用自己编译自己的编译器来跑测试
 test0: install tests/runtests0 mycc0
 	(cd tests; chmod +x runtests0; ./runtests0)
 
 
-# Try to do the triple test
+# 继续编译自己
 triple: mycc1
 	size mycc[01]
 
-# Paranoid: quadruple test
+# 编译自己上瘾了
 quad: mycc2
 	size mycc[012]
 
