@@ -589,17 +589,18 @@ static struct symtable *composite_declaration(int type) {
   // union很简单，都是0，对于struct，要对齐成员，并找出下个空闲字节的位移
   for (m = m->next; m != NULL; m = m->next) {
     // 为成员设置所在位置
-    if (type == P_STRUCT)
+    if (type == P_STRUCT){
       m->st_posn = genalign(m->type, offset, 1);
-    else
+      offset = m->st_posn + typesize(m->type, m->ctype); // 获得当前成员下个空闲字节的位移
+    }
+    else{
       m->st_posn = 0;
-
-    // 获得当前成员下个空闲字节的位移
-    offset += typesize(m->type, m->ctype);
+      offset = typesize(m->type, m->ctype) > offset ? typesize(m->type, m->ctype) : offset; // 对于union来说，取最大的那个成员作为大小
+    }
   }
 
   // 设置复合类型的大小
-  // TODO：check this later
+  // TODO：check this later !done
   ctype->size = offset;
   return (ctype);
 }

@@ -601,6 +601,11 @@ struct ASTnode *binexpr(int ptp) {
       left->rvalue = 1;
       right->rvalue = 1;
 
+      // TODO: 对于A_ASPLUS等类型加上解引用是有问题等，mark之
+      // if(ASTop==A_ASPLUS){
+      //   left->rvalue = 0;
+      // }
+
       // 保证这两个类型要兼容，
       // 如果兼容的话，修改其中一个树去匹配另外一个树
       ltemp = modify_type(left, right->type, right->ctype, ASTop);

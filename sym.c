@@ -156,7 +156,7 @@ struct symtable *findglob(char *s) {
 
 
 // 在本地符号表里面查找
-struct symtable *findlocl(char *s) {cans
+struct symtable *findlocl(char *s) {
   struct symtable *node;
 
   // 如果正在解析函数体，在参数表里面找
