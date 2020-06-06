@@ -4,7 +4,7 @@
 struct a{
     union {
         int b
-    } c;
+    } c; // 目前只支持嵌套一个struct/union声明，而且只能是第一个成员😭，或者在外面声明好，再到里面用吧😭
     long k
 };
 

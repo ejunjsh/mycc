@@ -11,8 +11,8 @@ static struct ASTnode *fold2(struct ASTnode *n) {
   int val, leftval, rightval;
 
   // 从每个子节点那里获得值
-  leftval = n->left->a_intvalue;
-  rightval = n->right->a_intvalue;
+  leftval = n->left->atu.a_intvalue;
+  rightval = n->right->atu.a_intvalue;
 
   // 执行二元操作
   // 对于其他不支持的操作
@@ -48,7 +48,7 @@ static struct ASTnode *fold1(struct ASTnode *n) {
 
   // 对孩子对值进行操作，前提是支持的操作
   // 返回一个新的叶子，对于不支持的操作，返回原树
-  val = n->left->a_intvalue;
+  val = n->left->atu.a_intvalue;
   switch (n->op) {
     case A_WIDEN:
       break;

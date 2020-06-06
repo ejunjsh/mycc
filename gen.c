@@ -87,8 +87,8 @@ static int genSWITCH(struct ASTnode *n) {
 
   // 分别创建case值和相关联的标签的数组
   // 保证数组至少有一个元素
-  caseval = (int *) malloc((n->a_intvalue + 1) * sizeof(int));
-  caselabel = (int *) malloc((n->a_intvalue + 1) * sizeof(int));
+  caseval = (int *) malloc((n->atu.a_intvalue + 1) * sizeof(int));
+  caselabel = (int *) malloc((n->atu.a_intvalue + 1) * sizeof(int));
 
   // 生成跳表的标签和整个SWITCH语句的结束标签
   // 设置默认标签为结束标签
@@ -107,7 +107,7 @@ static int genSWITCH(struct ASTnode *n) {
     // 获得一个case的标签号,保存它和值到数组里
     // 如果有default case,就存到defaultlabel
     caselabel[i] = genlabel();
-    caseval[i] = c->a_intvalue;
+    caseval[i] = c->atu.a_intvalue;
     cglabel(caselabel[i]);
     if (c->op == A_DEFAULT)
       defaultlabel = caselabel[i];
@@ -180,10 +180,10 @@ static int gen_funccall(struct ASTnode *n) {
     // 生成表达式,并返回表达式值的寄存器
     reg = genAST(gluetree->right, NOLABEL, NOLABEL, NOLABEL, gluetree->op);
     // 拷贝实参到形参
-    cgcopyarg(reg, gluetree->a_size);
+    cgcopyarg(reg, gluetree->atu.a_size);
     // 保留函数参数数量
     if (numargs == 0)
-      numargs = gluetree->a_size;
+      numargs = gluetree->atu.a_size;
     gluetree = gluetree->left;
   }
 
@@ -313,9 +313,9 @@ int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
     else
       return (cgcompare_and_set(n->op, leftreg, rightreg, n->left->type));
   case A_INTLIT:
-    return (cgloadint(n->a_intvalue, n->type));
+    return (cgloadint(n->atu.a_intvalue, n->type));
   case A_STRLIT:
-    return (cgloadglobstr(n->a_intvalue));
+    return (cgloadglobstr(n->atu.a_intvalue));
   case A_IDENT:
     // 如果是右值或者是解引用，则加载值
     if (n->rvalue || parentASTop == A_DEREF) {
@@ -389,7 +389,7 @@ int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
       return (leftreg);
   case A_SCALE:
     // 小优化：如果大小是2的幂次方，就使用位移来处理
-    switch (n->a_size) {
+    switch (n->atu.a_size) {
     case 2:
       return (cgshlconst(leftreg, 1));
     case 4:
@@ -398,7 +398,7 @@ int genAST(struct ASTnode *n, int iflabel, int looptoplabel,
       return (cgshlconst(leftreg, 3));
     default:
       // 加载大小到寄存器，然后用左寄存器相乘
-      rightreg = cgloadint(n->a_size, P_INT);
+      rightreg = cgloadint(n->atu.a_size, P_INT);
       return (cgmul(leftreg, rightreg));
     }
   case A_POSTINC:

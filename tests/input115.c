@@ -5,35 +5,39 @@ typedef struct foo blah;
 union bar { int x; char y; long z; }; 
 typedef union bar haha;
 
-// Symbol table structure
+// 符号表结构
 struct symtable {
-  char *name;                   // Name of a symbol
-  int type;                     // Primitive type for the symbol
-  struct symtable *ctype;       // If struct/union, ptr to that type
-  int stype;                    // Structural type for the symbol
-  int class;                    // Storage class for the symbol
-  int size;                     // Total size in bytes of this symbol
-  int nelems;                   // Functions: # params. Arrays: # elements
-#define st_endlabel st_posn     // For functions, the end label
-  int st_posn;                  // For locals, the negative offset
-                                // from the stack base pointer
-  int *initlist;                // List of initial values
-  struct symtable *next;        // Next symbol in one list
-  struct symtable *member;      // First member of a function, struct,
-};                              // union or enum
+  union {
+    int st_endlabel; // 对于函数，表示为结束标签号
+    int st_posn; // 对于本地变量，表现相对于栈底的偏移量，是个负数
+  } stu;
+  char *name;			// 符号表名称
+  int type;			// 当前符号表的类型
+  struct symtable *ctype;	// 如果是struct/union, 指向他们的类型
+  int stype;			// 结构化类型
+  int class;			// 存储类
+  int size;			// 当前符号表大小
+  int nelems;			// 函数: # 参数个数. 数组: # 元素个数
+  int *initlist;		// 初始值列表
+  struct symtable *next;	// 列表的下个符号表
+  struct symtable *member;	// 函数，结构体，联合体或者枚举的第一个成员
+};				
 
-// Abstract Syntax Tree structure
+// 抽象语法树结构
 struct ASTnode {
-  int op;                       // "Operation" to be performed on this tree
-  int type;                     // Type of any expression this tree generates
-  int rvalue;                   // True if the node is an rvalue
-  struct ASTnode *left;         // Left, middle and right child trees
+  union{
+    int a_intvalue; // 对于A_INTLIT，表示整型的值
+    int a_size; //  对于A_SCALE，表示倍数
+  } atu;
+  int op;			// 树的操作
+  int type;			// 树生成的表达式类型
+  struct symtable *ctype;	// 如果是struct/union, 指向他们的类型
+  int rvalue;			// 如果是右值，就设置为1
+  struct ASTnode *left;		// 左中右子树
   struct ASTnode *mid;
   struct ASTnode *right;
-  struct symtable *sym;         // For many AST nodes, the pointer to
-                                // the symbol in the symbol table
-#define a_intvalue a_size       // For A_INTLIT, the integer value
-  int a_size;                   // For A_SCALE, the size to scale by
+  struct symtable *sym;		// 指向符号表
+  int linenum;			//  这个节点所在的行号
 };
 
 int main() {

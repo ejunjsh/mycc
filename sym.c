@@ -55,7 +55,7 @@ struct symtable *newsym(char *name, int type, struct symtable *ctype,
   if (ptrtype(type) || inttype(type))
     node->size = nelems * typesize(type, ctype);
 
-  node->st_posn = posn;
+  node->stu.st_posn = posn;
   node->next = NULL;
   node->member = NULL;
   node->initlist = NULL;
@@ -356,7 +356,7 @@ static void dumpsym(struct symtable *sym, int indent) {
   switch (sym->stype) {
     case S_VARIABLE:
       if (sym->class == C_ENUMVAL)
-	printf(", value %d\n", sym->st_posn);
+	printf(", value %d\n", sym->stu.st_posn);
       else
 	printf(", size %d\n", sym->size);
       break;

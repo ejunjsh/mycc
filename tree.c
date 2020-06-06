@@ -27,7 +27,7 @@ struct ASTnode *mkastnode(int op, int type,
   n->mid = mid;
   n->right = right;
   n->sym = sym;
-  n->a_intvalue = intvalue;
+  n->atu.a_intvalue = intvalue;
   n->linenum= 0;
   return (n);
 }
@@ -136,10 +136,10 @@ void dumpAST(struct ASTnode *n, int label, int level) {
       fprintf(stdout, "A_GE\n");
       return;
     case A_INTLIT:
-      fprintf(stdout, "A_INTLIT %d\n", n->a_intvalue);
+      fprintf(stdout, "A_INTLIT %d\n", n->atu.a_intvalue);
       return;
     case A_STRLIT:
-      fprintf(stdout, "A_STRLIT rval label L%d\n", n->a_intvalue);
+      fprintf(stdout, "A_STRLIT rval label L%d\n", n->atu.a_intvalue);
       return;
     case A_IDENT:
       if (n->rvalue)
@@ -169,7 +169,7 @@ void dumpAST(struct ASTnode *n, int label, int level) {
 	      fprintf(stdout, "A_DEREF\n");
       return;
     case A_SCALE:
-      fprintf(stdout, "A_SCALE %d\n", n->a_size);
+      fprintf(stdout, "A_SCALE %d\n", n->atu.a_size);
       return;
     case A_PREINC:
       fprintf(stdout, "A_PREINC %s\n", n->sym->name);
@@ -193,7 +193,7 @@ void dumpAST(struct ASTnode *n, int label, int level) {
       fprintf(stdout, "A_CONTINUE\n");
       return;
     case A_CASE:
-      fprintf(stdout, "A_CASE %d\n", n->a_intvalue);
+      fprintf(stdout, "A_CASE %d\n", n->atu.a_intvalue);
       return;
     case A_DEFAULT:
       fprintf(stdout, "A_DEFAULT\n");

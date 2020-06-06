@@ -250,11 +250,11 @@ static struct ASTnode *switch_statement(void) {
           // 保证case的值是整型字面量
           if (left->op != A_INTLIT)
             fatal("Expecting integer literal for case value");
-          casevalue = left->a_intvalue;
+          casevalue = left->atu.a_intvalue;
 
           // 检查有没有相同的case值
           for (c = casetree; c != NULL; c = c->right)
-            if (casevalue == c->a_intvalue)
+            if (casevalue == c->atu.a_intvalue)
               fatal("Duplicate case value");
         }
 
@@ -286,7 +286,7 @@ static struct ASTnode *switch_statement(void) {
   Switchlevel--;
 
   // 把casetree加入到A_SWITCH节点,同时也把case数设进去
-  n->a_intvalue = casecount;
+  n->atu.a_intvalue = casecount;
   n->right = casetree;
   rbrace();
 

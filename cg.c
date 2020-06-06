@@ -236,17 +236,17 @@ void cgfuncpreamble(struct symtable *sym) {
   // 如果大于6个参数都已经在栈了
   for (parm = sym->member, cnt = 1; parm != NULL; parm = parm->next, cnt++) {
     if (cnt > 6) {
-      parm->st_posn = paramOffset;
+      parm->stu.st_posn = paramOffset;
       paramOffset += 8;
     } else {
-      parm->st_posn = newlocaloffset(parm->size);
+      parm->stu.st_posn = newlocaloffset(parm->size);
       cgstorlocal(paramReg--, parm);
     }
   }
 
   // 计算本地变量的栈位置
   for (locvar = Loclhead; locvar != NULL; locvar = locvar->next) {
-    locvar->st_posn = newlocaloffset(locvar->size);
+    locvar->stu.st_posn = newlocaloffset(locvar->size);
   }
 
   // 对齐栈指针到16的倍数
@@ -256,7 +256,7 @@ void cgfuncpreamble(struct symtable *sym) {
 
 // 生成函数后缀汇编
 void cgfuncpostamble(struct symtable *sym) {
-  cglabel(sym->st_endlabel);
+  cglabel(sym->stu.st_endlabel);
   fprintf(Outfile, "\taddq\t$%d,%%rsp\n", stackOffset);
   fputs("\tpopq	%rbp\n" "\tret\n", Outfile);
   cgfreeallregs(NOREG);
@@ -295,7 +295,7 @@ int cgloadvar(struct symtable *sym, int op) {
   if (op == A_PREINC || op == A_PREDEC) {
     // 获取变量地址
     if (sym->class == C_LOCAL || sym->class == C_PARAM)
-      fprintf(Outfile, "\tleaq\t%d(%%rbp), %s\n", sym->st_posn, reglist[r]);
+      fprintf(Outfile, "\tleaq\t%d(%%rbp), %s\n", sym->stu.st_posn, reglist[r]);
     else
       fprintf(Outfile, "\tleaq\t%s(%%rip), %s\n", sym->name, reglist[r]);
 
@@ -317,13 +317,13 @@ int cgloadvar(struct symtable *sym, int op) {
   if (sym->class == C_LOCAL || sym->class == C_PARAM) {
     switch (sym->size) {
     case 1:
-      fprintf(Outfile, "\tmovzbq\t%d(%%rbp), %s\n", sym->st_posn, reglist[r]);
+      fprintf(Outfile, "\tmovzbq\t%d(%%rbp), %s\n", sym->stu.st_posn, reglist[r]);
       break;
     case 4:
-      fprintf(Outfile, "\tmovslq\t%d(%%rbp), %s\n", sym->st_posn, reglist[r]);
+      fprintf(Outfile, "\tmovslq\t%d(%%rbp), %s\n", sym->stu.st_posn, reglist[r]);
       break;
     case 8:
-      fprintf(Outfile, "\tmovq\t%d(%%rbp), %s\n", sym->st_posn, reglist[r]);
+      fprintf(Outfile, "\tmovq\t%d(%%rbp), %s\n", sym->stu.st_posn, reglist[r]);
     }
   } else {
     switch (sym->size) {
@@ -344,7 +344,7 @@ int cgloadvar(struct symtable *sym, int op) {
 
     // 获取变量地址
     if (sym->class == C_LOCAL || sym->class == C_PARAM)
-      fprintf(Outfile, "\tleaq\t%d(%%rbp), %s\n", sym->st_posn,
+      fprintf(Outfile, "\tleaq\t%d(%%rbp), %s\n", sym->stu.st_posn,
 	      reglist[postreg]);
     else
       fprintf(Outfile, "\tleaq\t%s(%%rip), %s\n", sym->name,
@@ -561,14 +561,14 @@ int cgstorglob(int r, struct symtable *sym) {
 int cgstorlocal(int r, struct symtable *sym) {
 
   if (cgprimsize(sym->type) == 8) {
-    fprintf(Outfile, "\tmovq\t%s, %d(%%rbp)\n", reglist[r], sym->st_posn);
+    fprintf(Outfile, "\tmovq\t%s, %d(%%rbp)\n", reglist[r], sym->stu.st_posn);
   } else
     switch (sym->type) {
     case P_CHAR:
-      fprintf(Outfile, "\tmovb\t%s, %d(%%rbp)\n", breglist[r], sym->st_posn);
+      fprintf(Outfile, "\tmovb\t%s, %d(%%rbp)\n", breglist[r], sym->stu.st_posn);
       break;
     case P_INT:
-      fprintf(Outfile, "\tmovl\t%s, %d(%%rbp)\n", dreglist[r], sym->st_posn);
+      fprintf(Outfile, "\tmovl\t%s, %d(%%rbp)\n", dreglist[r], sym->stu.st_posn);
       break;
     default:
       fatald("Bad type in cgstorlocal:", sym->type);
@@ -751,7 +751,7 @@ void cgreturn(int reg, struct symtable *sym) {
     }
   }
 
-  cgjump(sym->st_endlabel);
+  cgjump(sym->stu.st_endlabel);
 }
 
 // 生成代码来加载一个标识符的地址到一个变量，返回装有这个地址的寄存器
@@ -762,7 +762,7 @@ int cgaddress(struct symtable *sym) {
       sym->class == C_EXTERN || sym->class == C_STATIC)
     fprintf(Outfile, "\tleaq\t%s(%%rip), %s\n", sym->name, reglist[r]);
   else
-    fprintf(Outfile, "\tleaq\t%d(%%rbp), %s\n", sym->st_posn, reglist[r]);
+    fprintf(Outfile, "\tleaq\t%d(%%rbp), %s\n", sym->stu.st_posn, reglist[r]);
   return (r);
 }
 

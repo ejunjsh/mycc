@@ -149,7 +149,7 @@ static struct ASTnode *member_access(struct ASTnode *left, int withpointer) {
   left->rvalue = 1;
 
   // 创建一个A_INTLIT节点，表示位移
-  right = mkastleaf(A_INTLIT, P_INT, NULL, NULL, m->st_posn);
+  right = mkastleaf(A_INTLIT, P_INT, NULL, NULL, m->stu.st_posn);
 
   // 返回一个语法树节点，该节点是给这个struct/union的基地址加上位移
   // 然后再在这个节点基础上，再加个节点来解引用。现在这些节点还是左值
@@ -269,7 +269,7 @@ static struct ASTnode *primary(int ptp) {
     // 如果标识符是个枚举值
     // 返回一个A_INTLIT节点
     if ((enumptr = findenumval(Text)) != NULL) {
-      n = mkastleaf(A_INTLIT, P_INT, NULL, NULL, enumptr->st_posn);
+      n = mkastleaf(A_INTLIT, P_INT, NULL, NULL, enumptr->stu.st_posn);
       break;
     }
 

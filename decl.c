@@ -141,16 +141,16 @@ int parse_literal(int type) {
   if (type == pointer_to(P_CHAR)) {
     // tree是字符字面量，返回标签号
     if (tree->op == A_STRLIT)
-      return (tree->a_intvalue);
+      return (tree->atu.a_intvalue);
     // tree是整型零值，所以是个NULL，所以返回0
-    if (tree->op == A_INTLIT && tree->a_intvalue == 0)
+    if (tree->op == A_INTLIT && tree->atu.a_intvalue == 0)
       return (0);
   }
 
   // 代码走到这里就是处理整型字面量量
   // 输入的type必须是个整型，同时足够宽来容纳这个字面值
   if (inttype(type) && typesize(type, NULL) >= typesize(tree->type, NULL))
-    return (tree->a_intvalue);
+    return (tree->atu.a_intvalue);
 
   fatal("Type mismatch: literal vs. variable");
   return (0);		
@@ -582,7 +582,7 @@ static struct symtable *composite_declaration(int type) {
 
   // 设置第一个成员的位置，然后找到下一个空闲字节的位移
   m = ctype->member;
-  m->st_posn = 0;
+  m->stu.st_posn = 0;
   offset = typesize(m->type, m->ctype);
 
   // 设置每个成员的位置
@@ -590,11 +590,11 @@ static struct symtable *composite_declaration(int type) {
   for (m = m->next; m != NULL; m = m->next) {
     // 为成员设置所在位置
     if (type == P_STRUCT){
-      m->st_posn = genalign(m->type, offset, 1);
-      offset = m->st_posn + typesize(m->type, m->ctype); // 获得当前成员下个空闲字节的位移
+      m->stu.st_posn = genalign(m->type, offset, 1);
+      offset = m->stu.st_posn + typesize(m->type, m->ctype); // 获得当前成员下个空闲字节的位移
     }
     else{
-      m->st_posn = 0;
+      m->stu.st_posn = 0;
       offset = typesize(m->type, m->ctype) > offset ? typesize(m->type, m->ctype) : offset; // 对于union来说，取最大的那个成员作为大小
     }
   }
