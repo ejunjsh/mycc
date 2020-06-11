@@ -10,7 +10,7 @@
 
 ## 编译
 
-linux平台
+linux平台 gcc (Ubuntu 7.4.0-1ubuntu1~18.04.1) 7.4.0
 
     make install
 
