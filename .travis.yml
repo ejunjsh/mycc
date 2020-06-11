@@ -1,0 +1,8 @@
+language: c
+
+compiler:
+  - gcc
+
+script:
+  - make clean test0
+  - make quad
