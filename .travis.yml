@@ -3,6 +3,8 @@ language: c
 compiler:
   - gcc
 
+dist: trusty
+
 script:
   - make clean test0
   - make quad
