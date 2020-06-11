@@ -3,7 +3,7 @@ language: c
 compiler:
   - gcc
 
-dist: trusty
+dist: bionic
 
 script:
   - make clean test0
